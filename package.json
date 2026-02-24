@@ -1,0 +1,17 @@
+{
+  "name": "tranbot",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "sidecar": "tsx src/sidecar/server.ts",
+    "test:stt": "tsx src/sidecar/test-stt.ts"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "@huggingface/transformers": "^3.8.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
