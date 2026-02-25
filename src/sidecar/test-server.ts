@@ -8,7 +8,9 @@ const language = process.argv[3] ?? 'zh'
 
 const { samples, sampleRate } = readWav(wavPath)
 console.log(`Audio : ${wavPath}`)
-console.log(`WAV   : ${sampleRate}Hz, ${samples.length} samples (${(samples.length / sampleRate).toFixed(2)}s)`)
+console.log(
+  `WAV   : ${sampleRate}Hz, ${samples.length} samples (${(samples.length / sampleRate).toFixed(2)}s)`,
+)
 console.log('---')
 
 const ws = new WebSocket('ws://localhost:8765')
@@ -29,7 +31,9 @@ ws.on('open', () => {
     ws.send(frame)
   }
 
-  console.log(`[Client] Sent ${samples.length} samples in chunks of ${CHUNK_SIZE}`)
+  console.log(
+    `[Client] Sent ${samples.length} samples in chunks of ${CHUNK_SIZE}`,
+  )
 })
 
 ws.on('message', (data) => {
@@ -53,11 +57,15 @@ ws.on('error', (err) => {
 
 // --- WAV parser ---
 
-function readWav(filePath: string): { samples: Float32Array; sampleRate: number } {
+function readWav(filePath: string): {
+  samples: Float32Array
+  sampleRate: number
+} {
   const buf = readFileSync(filePath)
 
   if (buf.toString('ascii', 0, 4) !== 'RIFF') throw new Error('Not a WAV file')
-  if (buf.toString('ascii', 8, 12) !== 'WAVE') throw new Error('Not a WAVE file')
+  if (buf.toString('ascii', 8, 12) !== 'WAVE')
+    throw new Error('Not a WAVE file')
 
   let offset = 12
   let sampleRate = 0
@@ -84,7 +92,8 @@ function readWav(filePath: string): { samples: Float32Array; sampleRate: number 
     offset += chunkSize + (chunkSize % 2)
   }
 
-  if (!sampleRate || !dataOffset) throw new Error('Invalid WAV: missing fmt or data chunk')
+  if (!sampleRate || !dataOffset)
+    throw new Error('Invalid WAV: missing fmt or data chunk')
 
   const bytesPerSample = bitsPerSample / 8
   const numSamples = Math.floor(dataSize / (bytesPerSample * numChannels))

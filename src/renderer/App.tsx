@@ -57,7 +57,10 @@ export default function App() {
   }, [])
 
   const start = useCallback(async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: false,
+    })
     const ctx = new AudioContext()
 
     const processorUrl = createProcessorUrl()
@@ -84,7 +87,12 @@ export default function App() {
     ctxRef.current = ctx
     setSampleRate(ctx.sampleRate)
     setRecording(true)
-    window.electron?.startSession({ sourceLang, targetLang: 'en', engine: 'deepl', sampleRate: ctx.sampleRate })
+    window.electron?.startSession({
+      sourceLang,
+      targetLang: 'en',
+      engine: 'deepl',
+      sampleRate: ctx.sampleRate,
+    })
   }, [sourceLang])
 
   const stop = useCallback(() => {
@@ -143,7 +151,9 @@ export default function App() {
               className="h-full rounded-full transition-[width] duration-75"
               style={{
                 width: `${volume * 100}%`,
-                backgroundColor: recording ? 'var(--color-primary)' : 'var(--color-muted-foreground)',
+                backgroundColor: recording
+                  ? 'var(--color-primary)'
+                  : 'var(--color-muted-foreground)',
               }}
             />
           </div>
@@ -154,9 +164,13 @@ export default function App() {
             onClick={recording ? stop : start}
           >
             {recording ? (
-              <><MicOff className="mr-2 h-4 w-4" /> Stop</>
+              <>
+                <MicOff className="mr-2 h-4 w-4" /> Stop
+              </>
             ) : (
-              <><Mic className="mr-2 h-4 w-4" /> Start Mic</>
+              <>
+                <Mic className="mr-2 h-4 w-4" /> Start Mic
+              </>
             )}
           </Button>
 

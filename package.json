@@ -7,7 +7,11 @@
     "build": "electron-vite build",
     "sidecar": "tsx src/sidecar/server.ts",
     "test:stt": "tsx src/sidecar/test-stt.ts",
-    "test:server": "tsx src/sidecar/test-server.ts"
+    "test:server": "tsx src/sidecar/test-server.ts",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "fmt": "prettier --write src",
+    "fmt:check": "prettier --check src"
   },
   "main": "out/main/main.js",
   "license": "ISC",
@@ -33,14 +37,20 @@
     "ws": "^8.19.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.2.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.1.4",
     "electron-vite": "^5.0.0",
+    "eslint": "^10.0.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "prettier": "^3.8.1",
     "tailwindcss": "^4.2.1",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.1"
   }
 }

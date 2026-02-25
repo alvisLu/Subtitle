@@ -1,6 +1,5 @@
 import { pipeline } from '@huggingface/transformers'
 
-
 export type ModelSize = 'tiny' | 'base' | 'small'
 
 const MODELS: Record<ModelSize, string> = {
@@ -17,7 +16,6 @@ export async function loadModel(size: ModelSize = 'base'): Promise<void> {
   const modelId = MODELS[size]
   console.log(`[STT] Loading ${modelId} ...`)
   const t = Date.now()
-  // @ts-ignore — pipeline overloads produce a union type too complex for TS
   transcriber = await pipeline('automatic-speech-recognition', modelId)
   console.log(`[STT] Ready in ${Date.now() - t}ms`)
 }
@@ -43,14 +41,22 @@ export async function transcribe(
     no_speech_threshold: 0.6,
     logprob_threshold: -1.0,
   })
-  const text: string = (Array.isArray(result) ? result.map((r: { text: string }) => r.text).join('') : result.text).trim()
+  const text: string = (
+    Array.isArray(result)
+      ? result.map((r: { text: string }) => r.text).join('')
+      : result.text
+  ).trim()
 
   console.log(`[STT] ${Date.now() - t}ms → "${text}"`)
   return text
 }
 
 /** Linear interpolation resample to 16000 Hz */
-function resample(input: Float32Array, fromRate: number, toRate = 16000): Float32Array {
+function resample(
+  input: Float32Array,
+  fromRate: number,
+  toRate = 16000,
+): Float32Array {
   const ratio = fromRate / toRate
   const length = Math.ceil(input.length / ratio)
   const output = new Float32Array(length)
@@ -58,9 +64,10 @@ function resample(input: Float32Array, fromRate: number, toRate = 16000): Float3
     const pos = i * ratio
     const idx = Math.floor(pos)
     const frac = pos - idx
-    output[i] = idx + 1 < input.length
-      ? input[idx] * (1 - frac) + input[idx + 1] * frac
-      : input[idx]
+    output[i] =
+      idx + 1 < input.length
+        ? input[idx] * (1 - frac) + input[idx + 1] * frac
+        : input[idx]
   }
   return output
 }

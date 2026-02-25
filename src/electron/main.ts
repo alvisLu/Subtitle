@@ -39,7 +39,11 @@ function attachSidecarHandlers(sock: WebSocket) {
     try {
       const msg = JSON.parse(data.toString())
       if (msg.type === 'transcript') {
-        win.webContents.send('transcript', { channel: msg.channel, text: msg.text, final: msg.final })
+        win.webContents.send('transcript', {
+          channel: msg.channel,
+          text: msg.text,
+          final: msg.final,
+        })
       } else if (msg.type === 'status') {
         win.webContents.send('status', msg.state)
       } else if (msg.type === 'error') {
@@ -79,12 +83,29 @@ function createWindow() {
 }
 
 // IPC: session control
-ipcMain.on('session:start', (_e, config: { sourceLang: string; targetLang: string; engine: string; sampleRate: number }) => {
-  console.log('[Main] session:start', config)
-  if (ws?.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'start', sourceLang: config.sourceLang, sampleRate: config.sampleRate }))
-  }
-})
+ipcMain.on(
+  'session:start',
+  (
+    _e,
+    config: {
+      sourceLang: string
+      targetLang: string
+      engine: string
+      sampleRate: number
+    },
+  ) => {
+    console.log('[Main] session:start', config)
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(
+        JSON.stringify({
+          type: 'start',
+          sourceLang: config.sourceLang,
+          sampleRate: config.sampleRate,
+        }),
+      )
+    }
+  },
+)
 
 ipcMain.on('session:stop', () => {
   console.log('[Main] session:stop')

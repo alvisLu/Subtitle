@@ -13,7 +13,9 @@ console.log(`Lang  : ${language}`)
 console.log('---')
 
 const { samples, sampleRate } = readWav(wavPath)
-console.log(`WAV   : ${sampleRate}Hz, ${samples.length} samples (${(samples.length / sampleRate).toFixed(2)}s)`)
+console.log(
+  `WAV   : ${sampleRate}Hz, ${samples.length} samples (${(samples.length / sampleRate).toFixed(2)}s)`,
+)
 console.log('---')
 
 await loadModel(modelSize)
@@ -21,11 +23,15 @@ await transcribe(samples, sampleRate, language)
 
 // --- WAV parser ---
 
-function readWav(filePath: string): { samples: Float32Array; sampleRate: number } {
+function readWav(filePath: string): {
+  samples: Float32Array
+  sampleRate: number
+} {
   const buf = readFileSync(filePath)
 
   if (buf.toString('ascii', 0, 4) !== 'RIFF') throw new Error('Not a WAV file')
-  if (buf.toString('ascii', 8, 12) !== 'WAVE') throw new Error('Not a WAVE file')
+  if (buf.toString('ascii', 8, 12) !== 'WAVE')
+    throw new Error('Not a WAVE file')
 
   let offset = 12
   let sampleRate = 0
@@ -52,7 +58,8 @@ function readWav(filePath: string): { samples: Float32Array; sampleRate: number 
     offset += chunkSize + (chunkSize % 2) // WAV chunks are word-aligned
   }
 
-  if (!sampleRate || !dataOffset) throw new Error('Invalid WAV: missing fmt or data chunk')
+  if (!sampleRate || !dataOffset)
+    throw new Error('Invalid WAV: missing fmt or data chunk')
 
   const bytesPerSample = bitsPerSample / 8
   const numSamples = Math.floor(dataSize / (bytesPerSample * numChannels))

@@ -2,11 +2,11 @@ import { WebSocketServer, WebSocket } from 'ws'
 import { loadModel, transcribe } from './stt.ts'
 
 /*
-* How to test: 
-* wscat -c ws://localhost:8765
-* # After connecting, send：
-* {"type":"start","sourceLang":"zh"}
-*/
+ * How to test:
+ * wscat -c ws://localhost:8765
+ * # After connecting, send：
+ * {"type":"start","sourceLang":"zh"}
+ */
 
 const PORT = 8765
 // Browser Web Audio API default sample rate
@@ -78,9 +78,13 @@ async function flushBuffer(session: Session, channel: Channel) {
   }
 
   // Skip silent audio to avoid Whisper hallucinations
-  const rms = Math.sqrt(combined.reduce((s, v) => s + v * v, 0) / combined.length)
+  const rms = Math.sqrt(
+    combined.reduce((s, v) => s + v * v, 0) / combined.length,
+  )
   if (rms < 0.01) {
-    console.log(`[Server] Skipping silent ${channel} chunk (rms=${rms.toFixed(4)})`)
+    console.log(
+      `[Server] Skipping silent ${channel} chunk (rms=${rms.toFixed(4)})`,
+    )
     if (channel === 'mic') session.micFlushing = false
     else session.loopbackFlushing = false
     return
@@ -89,7 +93,11 @@ async function flushBuffer(session: Session, channel: Channel) {
   send(session.ws, { type: 'status', state: 'processing' })
 
   try {
-    const text = await transcribe(combined, session.sampleRate, session.sourceLang)
+    const text = await transcribe(
+      combined,
+      session.sampleRate,
+      session.sourceLang,
+    )
     if (text) {
       send(session.ws, { type: 'transcript', channel, text, final: true })
     }
@@ -112,20 +120,28 @@ function handleAudio(session: Session, data: Buffer) {
   // Float32Array requires 4-byte aligned offset; copy PCM bytes into a fresh ArrayBuffer
   const pcmByteLength = data.length - 1
   const ab = new ArrayBuffer(pcmByteLength)
-  new Uint8Array(ab).set(new Uint8Array(data.buffer, data.byteOffset + 1, pcmByteLength))
+  new Uint8Array(ab).set(
+    new Uint8Array(data.buffer, data.byteOffset + 1, pcmByteLength),
+  )
   const pcm = new Float32Array(ab)
 
   if (channel === 'mic') {
     session.micBuffer.push(pcm.slice())
     session.micSamples += pcm.length
-    if (session.micSamples >= session.sampleRate * FLUSH_SECONDS && !session.micFlushing) {
+    if (
+      session.micSamples >= session.sampleRate * FLUSH_SECONDS &&
+      !session.micFlushing
+    ) {
       session.micFlushing = true
       flushBuffer(session, 'mic')
     }
   } else {
     session.loopbackBuffer.push(pcm.slice())
     session.loopbackSamples += pcm.length
-    if (session.loopbackSamples >= session.sampleRate * FLUSH_SECONDS && !session.loopbackFlushing) {
+    if (
+      session.loopbackSamples >= session.sampleRate * FLUSH_SECONDS &&
+      !session.loopbackFlushing
+    ) {
       session.loopbackFlushing = true
       flushBuffer(session, 'loopback')
     }
