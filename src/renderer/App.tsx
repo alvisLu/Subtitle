@@ -3,6 +3,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Mic, MicOff } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 const PROCESSOR_CODE = `
 class MicProcessor extends AudioWorkletProcessor {
@@ -20,11 +27,21 @@ function createProcessorUrl() {
   return URL.createObjectURL(blob)
 }
 
+const LANGUAGES = [
+  { code: 'zh', label: '中文' },
+  { code: 'en', label: 'English' },
+  // { code: 'ja', label: '日本語' },
+  // { code: 'ko', label: '한국어' },
+  // { code: 'fr', label: 'Français' },
+  // { code: 'de', label: 'Deutsch' },
+]
+
 export default function App() {
   const [recording, setRecording] = useState(false)
   const [sampleRate, setSampleRate] = useState(0)
   const [volume, setVolume] = useState(0)
   const [transcript, setTranscript] = useState('')
+  const [sourceLang, setSourceLang] = useState('zh')
 
   const ctxRef = useRef<AudioContext | null>(null)
   const processorUrlRef = useRef<string | null>(null)
@@ -67,8 +84,8 @@ export default function App() {
     ctxRef.current = ctx
     setSampleRate(ctx.sampleRate)
     setRecording(true)
-    window.electron?.startSession({ sourceLang: 'zh', targetLang: 'en', engine: 'deepl', sampleRate: ctx.sampleRate })
-  }, [])
+    window.electron?.startSession({ sourceLang, targetLang: 'en', engine: 'deepl', sampleRate: ctx.sampleRate })
+  }, [sourceLang])
 
   const stop = useCallback(() => {
     ctxRef.current?.close()
@@ -81,7 +98,6 @@ export default function App() {
     setVolume(0)
     setSampleRate(0)
     window.electron?.stopSession()
-    window.electron?.removeAllListeners('transcript')
   }, [])
 
   return (
@@ -100,6 +116,27 @@ export default function App() {
         </CardHeader>
 
         <CardContent className="space-y-4">
+          {/* Language selector */}
+          <Select
+            value={sourceLang}
+            onValueChange={(val) => {
+              setSourceLang(val)
+              if (recording) window.electron?.setLang(val)
+            }}
+            disabled={recording}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LANGUAGES.map((lang) => (
+                <SelectItem key={lang.code} value={lang.code}>
+                  {lang.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           {/* Volume bar */}
           <div className="h-3 w-full rounded-full bg-secondary overflow-hidden">
             <div

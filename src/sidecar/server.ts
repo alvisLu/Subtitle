@@ -49,6 +49,9 @@ function handleControl(session: Session, raw: string) {
     session.running = true
     send(session.ws, { type: 'status', state: 'listening' })
     console.log(`[Server] Started — lang: ${session.sourceLang}`)
+  } else if (msg.type === 'setLang') {
+    session.sourceLang = msg.sourceLang ?? session.sourceLang
+    console.log(`[Server] Language changed to: ${session.sourceLang}`)
   } else if (msg.type === 'stop') {
     session.running = false
     send(session.ws, { type: 'status', state: 'idle' })

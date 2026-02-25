@@ -93,6 +93,12 @@ ipcMain.on('session:stop', () => {
   }
 })
 
+ipcMain.on('session:setLang', (_e, lang: string) => {
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'setLang', sourceLang: lang }))
+  }
+})
+
 // IPC: audio chunks from Renderer → prepend channel byte → forward to sidecar
 ipcMain.on('audio:chunk', (_e, buffer: ArrayBuffer, channel: 0 | 1) => {
   if (!ws || ws.readyState !== WebSocket.OPEN) return

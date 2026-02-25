@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "ELECTRON_RUN_AS_NODE= electron-vite dev",
     "build": "electron-vite build",
     "sidecar": "tsx src/sidecar/server.ts",
     "test:stt": "tsx src/sidecar/test-stt.ts",
