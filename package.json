@@ -3,17 +3,30 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
     "sidecar": "tsx src/sidecar/server.ts",
     "test:stt": "tsx src/sidecar/test-stt.ts",
     "test:server": "tsx src/sidecar/test-server.ts"
   },
+  "main": "out/main/main.js",
   "license": "ISC",
+  "pnpm": {
+    "onlyBuiltDependencies": ["electron", "esbuild", "onnxruntime-node", "sharp"]
+  },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
+    "electron": "^40.6.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "ws": "^8.19.0"
   },
   "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^5.1.4",
+    "electron-vite": "^5.0.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
