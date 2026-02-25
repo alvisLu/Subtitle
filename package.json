@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "sidecar": "tsx src/sidecar/server.ts",
-    "test:stt": "tsx src/sidecar/test-stt.ts"
+    "test:stt": "tsx src/sidecar/test-stt.ts",
+    "test:server": "tsx src/sidecar/test-server.ts"
   },
   "license": "ISC",
   "dependencies": {

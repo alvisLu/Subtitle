@@ -1,17 +1,24 @@
 import { WebSocketServer, WebSocket } from 'ws'
 import { loadModel, transcribe } from './stt.ts'
 
+/*
+* How to test: 
+* wscat -c ws://localhost:8765
+* # After connecting, send：
+* {"type":"start","sourceLang":"zh"}
+*/
+
 const PORT = 8765
 // Browser Web Audio API default sample rate
 const INCOMING_SAMPLE_RATE = 48000
-// Flush every 3 seconds of audio
-const FLUSH_SAMPLES = INCOMING_SAMPLE_RATE * 3
+const FLUSH_SECONDS = 3
 
 type Channel = 'mic' | 'loopback'
 
 interface Session {
   ws: WebSocket
   sourceLang: string
+  sampleRate: number
   running: boolean
   micBuffer: Float32Array[]
   loopbackBuffer: Float32Array[]
@@ -29,7 +36,7 @@ function send(ws: WebSocket, payload: object) {
 }
 
 function handleControl(session: Session, raw: string) {
-  let msg: { type: string; sourceLang?: string }
+  let msg: { type: string; sourceLang?: string; sampleRate?: number }
   try {
     msg = JSON.parse(raw)
   } catch {
@@ -38,6 +45,7 @@ function handleControl(session: Session, raw: string) {
 
   if (msg.type === 'start') {
     session.sourceLang = msg.sourceLang ?? 'zh'
+    session.sampleRate = msg.sampleRate ?? INCOMING_SAMPLE_RATE
     session.running = true
     send(session.ws, { type: 'status', state: 'listening' })
     console.log(`[Server] Started — lang: ${session.sourceLang}`)
@@ -69,7 +77,7 @@ async function flushBuffer(session: Session, channel: Channel) {
   send(session.ws, { type: 'status', state: 'processing' })
 
   try {
-    const text = await transcribe(combined, INCOMING_SAMPLE_RATE, session.sourceLang)
+    const text = await transcribe(combined, session.sampleRate, session.sourceLang)
     if (text) {
       send(session.ws, { type: 'transcript', channel, text, final: true })
     }
@@ -89,20 +97,23 @@ function handleAudio(session: Session, data: Buffer) {
   if (!session.running) return
 
   const channel: Channel = data[0] === 0 ? 'mic' : 'loopback'
-  // Remaining bytes: Float32Array PCM (each sample = 4 bytes)
-  const pcm = new Float32Array(data.buffer, data.byteOffset + 1, (data.length - 1) / 4)
+  // Float32Array requires 4-byte aligned offset; copy PCM bytes into a fresh ArrayBuffer
+  const pcmByteLength = data.length - 1
+  const ab = new ArrayBuffer(pcmByteLength)
+  new Uint8Array(ab).set(new Uint8Array(data.buffer, data.byteOffset + 1, pcmByteLength))
+  const pcm = new Float32Array(ab)
 
   if (channel === 'mic') {
     session.micBuffer.push(pcm.slice())
     session.micSamples += pcm.length
-    if (session.micSamples >= FLUSH_SAMPLES && !session.micFlushing) {
+    if (session.micSamples >= session.sampleRate * FLUSH_SECONDS && !session.micFlushing) {
       session.micFlushing = true
       flushBuffer(session, 'mic')
     }
   } else {
     session.loopbackBuffer.push(pcm.slice())
     session.loopbackSamples += pcm.length
-    if (session.loopbackSamples >= FLUSH_SAMPLES && !session.loopbackFlushing) {
+    if (session.loopbackSamples >= session.sampleRate * FLUSH_SECONDS && !session.loopbackFlushing) {
       session.loopbackFlushing = true
       flushBuffer(session, 'loopback')
     }
@@ -121,6 +132,7 @@ async function main() {
     const session: Session = {
       ws,
       sourceLang: 'zh',
+      sampleRate: INCOMING_SAMPLE_RATE,
       running: false,
       micBuffer: [],
       loopbackBuffer: [],
