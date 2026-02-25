@@ -31,7 +31,7 @@ export async function transcribe(
   const resampled = sampleRate === 16000 ? audio : resample(audio, sampleRate)
 
   const t = Date.now()
-  const result = await transcriber(resampled, { language, task: 'transcribe' })
+  const result = await transcriber(resampled, { language, task: 'transcribe', num_beams: 5, temperature: 0 })
   const text: string = (Array.isArray(result) ? result.map((r: { text: string }) => r.text).join('') : result.text).trim()
 
   console.log(`[STT] ${Date.now() - t}ms → "${text}"`)

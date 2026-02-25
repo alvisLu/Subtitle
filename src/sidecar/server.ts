@@ -74,6 +74,15 @@ async function flushBuffer(session: Session, channel: Channel) {
     offset += chunk.length
   }
 
+  // Skip silent audio to avoid Whisper hallucinations
+  const rms = Math.sqrt(combined.reduce((s, v) => s + v * v, 0) / combined.length)
+  if (rms < 0.01) {
+    console.log(`[Server] Skipping silent ${channel} chunk (rms=${rms.toFixed(4)})`)
+    if (channel === 'mic') session.micFlushing = false
+    else session.loopbackFlushing = false
+    return
+  }
+
   send(session.ws, { type: 'status', state: 'processing' })
 
   try {
@@ -121,7 +130,7 @@ function handleAudio(session: Session, data: Buffer) {
 }
 
 async function main() {
-  await loadModel('tiny')
+  await loadModel('small')
 
   const wss = new WebSocketServer({ port: PORT })
   console.log(`[Server] WebSocket listening on ws://localhost:${PORT}`)
