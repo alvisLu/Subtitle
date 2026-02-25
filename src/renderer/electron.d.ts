@@ -1,5 +1,5 @@
 interface ElectronAPI {
-  startSession(config: { sourceLang: string; targetLang: string; engine: 'deepl' | 'openai' }): void
+  startSession(config: { sourceLang: string; targetLang: string; engine: 'deepl' | 'openai'; sampleRate: number }): void
   stopSession(): void
   sendAudio(buffer: ArrayBuffer, channel: 0 | 1): void
   onTranscript(cb: (data: { channel: string; text: string; final: boolean }) => void): void

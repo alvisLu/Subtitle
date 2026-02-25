@@ -67,7 +67,7 @@ export default function App() {
     ctxRef.current = ctx
     setSampleRate(ctx.sampleRate)
     setRecording(true)
-    window.electron?.startSession({ sourceLang: 'zh', targetLang: 'en', engine: 'deepl' })
+    window.electron?.startSession({ sourceLang: 'zh', targetLang: 'en', engine: 'deepl', sampleRate: ctx.sampleRate })
   }, [])
 
   const stop = useCallback(() => {
@@ -123,7 +123,7 @@ export default function App() {
             )}
           </Button>
 
-          {/* Transcript display (Phase 6 will populate this) */}
+          {/* Transcript display (Phase 3 will populate this) */}
           {transcript && (
             <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground break-words">
               {transcript}
