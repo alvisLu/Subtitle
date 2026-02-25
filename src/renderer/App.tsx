@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,9 +24,20 @@ export default function App() {
   const [recording, setRecording] = useState(false)
   const [sampleRate, setSampleRate] = useState(0)
   const [volume, setVolume] = useState(0)
+  const [transcript, setTranscript] = useState('')
 
   const ctxRef = useRef<AudioContext | null>(null)
   const processorUrlRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!window.electron) return
+    window.electron.onTranscript(({ text }) => {
+      setTranscript(text)
+    })
+    return () => {
+      window.electron.removeAllListeners('transcript')
+    }
+  }, [])
 
   const start = useCallback(async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
@@ -43,6 +54,8 @@ export default function App() {
       const pcm = e.data
       const rms = Math.sqrt(pcm.reduce((s, v) => s + v * v, 0) / pcm.length)
       setVolume(Math.min(1, rms * 8))
+      // Send PCM to Main process; slice() ensures a plain ArrayBuffer (not SharedArrayBuffer)
+      window.electron?.sendAudio(pcm.slice().buffer, 0)
     }
 
     const silencer = ctx.createGain()
@@ -54,6 +67,7 @@ export default function App() {
     ctxRef.current = ctx
     setSampleRate(ctx.sampleRate)
     setRecording(true)
+    window.electron?.startSession({ sourceLang: 'zh', targetLang: 'en', engine: 'deepl' })
   }, [])
 
   const stop = useCallback(() => {
@@ -66,6 +80,8 @@ export default function App() {
     setRecording(false)
     setVolume(0)
     setSampleRate(0)
+    window.electron?.stopSession()
+    window.electron?.removeAllListeners('transcript')
   }, [])
 
   return (
@@ -106,6 +122,13 @@ export default function App() {
               <><Mic className="mr-2 h-4 w-4" /> Start Mic</>
             )}
           </Button>
+
+          {/* Transcript display (Phase 6 will populate this) */}
+          {transcript && (
+            <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground break-words">
+              {transcript}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
