@@ -1,4 +1,8 @@
 import React, { useState, useRef, useCallback } from 'react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Mic, MicOff } from 'lucide-react'
 
 const PROCESSOR_CODE = `
 class MicProcessor extends AudioWorkletProcessor {
@@ -41,7 +45,6 @@ export default function App() {
       setVolume(Math.min(1, rms * 8))
     }
 
-    // Connect: source → worklet → silent gain (keeps graph alive without playback)
     const silencer = ctx.createGain()
     silencer.gain.value = 0
     source.connect(worklet)
@@ -66,44 +69,45 @@ export default function App() {
   }, [])
 
   return (
-    <div style={{ padding: 32, fontFamily: 'system-ui, sans-serif' }}>
-      <h2 style={{ marginTop: 0 }}>TranBot — Mic Test</h2>
+    <div className="min-h-screen bg-background flex items-center justify-center p-8">
+      <Card className="w-80">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">TranBot — Mic Test</CardTitle>
+            <Badge variant={recording ? 'default' : 'secondary'}>
+              {recording ? 'Recording' : 'Idle'}
+            </Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Sample rate: {sampleRate ? `${sampleRate} Hz` : '—'}
+          </p>
+        </CardHeader>
 
-      <p style={{ color: '#666', fontSize: 14 }}>
-        Sample rate: {sampleRate ? `${sampleRate} Hz` : '—'}
-      </p>
+        <CardContent className="space-y-4">
+          {/* Volume bar */}
+          <div className="h-3 w-full rounded-full bg-secondary overflow-hidden">
+            <div
+              className="h-full rounded-full transition-[width] duration-75"
+              style={{
+                width: `${volume * 100}%`,
+                backgroundColor: recording ? 'var(--color-primary)' : 'var(--color-muted-foreground)',
+              }}
+            />
+          </div>
 
-      {/* Volume bar */}
-      <div style={{
-        width: 300,
-        height: 16,
-        background: '#e5e7eb',
-        borderRadius: 8,
-        overflow: 'hidden',
-        marginBottom: 20,
-      }}>
-        <div style={{
-          width: `${volume * 100}%`,
-          height: '100%',
-          background: recording ? '#22c55e' : '#9ca3af',
-          transition: 'width 80ms linear',
-        }} />
-      </div>
-
-      <button
-        onClick={recording ? stop : start}
-        style={{
-          padding: '8px 20px',
-          fontSize: 14,
-          borderRadius: 6,
-          border: 'none',
-          background: recording ? '#ef4444' : '#3b82f6',
-          color: '#fff',
-          cursor: 'pointer',
-        }}
-      >
-        {recording ? 'Stop' : 'Start Mic'}
-      </button>
+          <Button
+            className="w-full"
+            variant={recording ? 'destructive' : 'default'}
+            onClick={recording ? stop : start}
+          >
+            {recording ? (
+              <><MicOff className="mr-2 h-4 w-4" /> Stop</>
+            ) : (
+              <><Mic className="mr-2 h-4 w-4" /> Start Mic</>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   )
 }
