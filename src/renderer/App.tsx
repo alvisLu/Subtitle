@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
+import { MicVAD } from '@ricky0123/vad-web'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,22 +12,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-const PROCESSOR_CODE = `
-class MicProcessor extends AudioWorkletProcessor {
-  process(inputs) {
-    const ch = inputs[0]?.[0]
-    if (ch) this.port.postMessage(ch.slice())
-    return true
-  }
-}
-registerProcessor('mic-processor', MicProcessor)
-`
-
-function createProcessorUrl() {
-  const blob = new Blob([PROCESSOR_CODE], { type: 'application/javascript' })
-  return URL.createObjectURL(blob)
-}
-
 const LANGUAGES = [
   { code: 'zh', label: '中文' },
   { code: 'en', label: 'English' },
@@ -38,13 +23,11 @@ const LANGUAGES = [
 
 export default function App() {
   const [recording, setRecording] = useState(false)
-  const [sampleRate, setSampleRate] = useState(0)
   const [volume, setVolume] = useState(0)
   const [transcript, setTranscript] = useState('')
   const [sourceLang, setSourceLang] = useState('zh')
 
-  const ctxRef = useRef<AudioContext | null>(null)
-  const processorUrlRef = useRef<string | null>(null)
+  const vadRef = useRef<MicVAD | null>(null)
 
   useEffect(() => {
     if (!window.electron) return
@@ -57,54 +40,42 @@ export default function App() {
   }, [])
 
   const start = useCallback(async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: false,
+    const myvad = await MicVAD.new({
+      // Static assets served from renderer publicDir (src/renderer/public/)
+      baseAssetPath: '/',
+      onnxWASMBasePath: '/',
+      model: 'v5',
+      onSpeechStart: () => setVolume(1),
+      onSpeechEnd: (audio: Float32Array) => {
+        // audio is Float32Array at 16kHz — send complete speech segment
+        window.electron?.sendAudio(audio.buffer as ArrayBuffer, 0)
+        setVolume(0)
+      },
+      onVADMisfire: () => setVolume(0),
+      onFrameProcessed: (prob) => {
+        if (!vadRef.current?.listening) return
+        setVolume(prob.isSpeech)
+      },
     })
-    const ctx = new AudioContext()
 
-    const processorUrl = createProcessorUrl()
-    processorUrlRef.current = processorUrl
-    await ctx.audioWorklet.addModule(processorUrl)
-
-    const source = ctx.createMediaStreamSource(stream)
-    const worklet = new AudioWorkletNode(ctx, 'mic-processor')
-
-    worklet.port.onmessage = (e: MessageEvent<Float32Array>) => {
-      const pcm = e.data
-      const rms = Math.sqrt(pcm.reduce((s, v) => s + v * v, 0) / pcm.length)
-      setVolume(Math.min(1, rms * 8))
-      // Send PCM to Main process; slice() ensures a plain ArrayBuffer (not SharedArrayBuffer)
-      window.electron?.sendAudio(pcm.slice().buffer, 0)
-    }
-
-    const silencer = ctx.createGain()
-    silencer.gain.value = 0
-    source.connect(worklet)
-    worklet.connect(silencer)
-    silencer.connect(ctx.destination)
-
-    ctxRef.current = ctx
-    setSampleRate(ctx.sampleRate)
+    await myvad.start()
+    vadRef.current = myvad
     setRecording(true)
+
+    // MicVAD outputs 16kHz — inform sidecar
     window.electron?.startSession({
       sourceLang,
       targetLang: 'en',
       engine: 'deepl',
-      sampleRate: ctx.sampleRate,
+      sampleRate: 16000,
     })
   }, [sourceLang])
 
-  const stop = useCallback(() => {
-    ctxRef.current?.close()
-    ctxRef.current = null
-    if (processorUrlRef.current) {
-      URL.revokeObjectURL(processorUrlRef.current)
-      processorUrlRef.current = null
-    }
+  const stop = useCallback(async () => {
+    await vadRef.current?.destroy()
+    vadRef.current = null
     setRecording(false)
     setVolume(0)
-    setSampleRate(0)
     window.electron?.stopSession()
   }, [])
 
@@ -118,9 +89,7 @@ export default function App() {
               {recording ? 'Recording' : 'Idle'}
             </Badge>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Sample rate: {sampleRate ? `${sampleRate} Hz` : '—'}
-          </p>
+          <p className="text-sm text-muted-foreground">VAD: Silero v5 @ 16kHz</p>
         </CardHeader>
 
         <CardContent className="space-y-4">
@@ -174,7 +143,6 @@ export default function App() {
             )}
           </Button>
 
-          {/* Transcript display (Phase 3 will populate this) */}
           {transcript && (
             <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground break-words">
               {transcript}

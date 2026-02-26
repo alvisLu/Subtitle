@@ -5,6 +5,12 @@ import prettierConfig from 'eslint-config-prettier'
 
 export default tseslint.config(
   { ignores: ['out/', 'node_modules/'] },
+  {
+    files: ['scripts/**'],
+    languageOptions: {
+      globals: { console: 'readonly', process: 'readonly' },
+    },
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

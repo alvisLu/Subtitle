@@ -5,13 +5,12 @@ import { loadModel, transcribe } from './stt.ts'
  * How to test:
  * wscat -c ws://localhost:8765
  * # After connecting, send：
- * {"type":"start","sourceLang":"zh"}
+ * {"type":"start","sourceLang":"zh","sampleRate":16000}
  */
 
 const PORT = 8765
-// Browser Web Audio API default sample rate
+// Fallback sample rate if client does not send sampleRate in start message
 const INCOMING_SAMPLE_RATE = 48000
-const FLUSH_SECONDS = 3
 
 type Channel = 'mic' | 'loopback'
 
@@ -20,13 +19,8 @@ interface Session {
   sourceLang: string
   sampleRate: number
   running: boolean
-  micBuffer: Float32Array[]
-  loopbackBuffer: Float32Array[]
-  micSamples: number
-  loopbackSamples: number
-  // Prevent concurrent STT calls per channel
-  micFlushing: boolean
-  loopbackFlushing: boolean
+  // Prevent concurrent STT calls
+  flushing: boolean
 }
 
 function send(ws: WebSocket, payload: object) {
@@ -59,45 +53,24 @@ function handleControl(session: Session, raw: string) {
   }
 }
 
-async function flushBuffer(session: Session, channel: Channel) {
-  const buffer = channel === 'mic' ? session.micBuffer : session.loopbackBuffer
-  if (buffer.length === 0) return
-
-  // Snapshot and reset
-  const chunks = buffer.splice(0)
-  if (channel === 'mic') session.micSamples = 0
-  else session.loopbackSamples = 0
-
-  // Concat chunks
-  const totalSamples = chunks.reduce((sum, c) => sum + c.length, 0)
-  const combined = new Float32Array(totalSamples)
-  let offset = 0
-  for (const chunk of chunks) {
-    combined.set(chunk, offset)
-    offset += chunk.length
-  }
-
-  // Skip silent audio to avoid Whisper hallucinations
-  const rms = Math.sqrt(
-    combined.reduce((s, v) => s + v * v, 0) / combined.length,
-  )
+async function transcribeSegment(
+  session: Session,
+  pcm: Float32Array,
+  channel: Channel,
+) {
+  // Skip silent audio as a safety net (VAD should have already filtered silence)
+  const rms = Math.sqrt(pcm.reduce((s, v) => s + v * v, 0) / pcm.length)
   if (rms < 0.01) {
     console.log(
-      `[Server] Skipping silent ${channel} chunk (rms=${rms.toFixed(4)})`,
+      `[Server] Skipping silent ${channel} segment (rms=${rms.toFixed(4)})`,
     )
-    if (channel === 'mic') session.micFlushing = false
-    else session.loopbackFlushing = false
     return
   }
 
   send(session.ws, { type: 'status', state: 'processing' })
 
   try {
-    const text = await transcribe(
-      combined,
-      session.sampleRate,
-      session.sourceLang,
-    )
+    const text = await transcribe(pcm, session.sampleRate, session.sourceLang)
     if (text) {
       send(session.ws, { type: 'transcript', channel, text, final: true })
     }
@@ -108,13 +81,10 @@ async function flushBuffer(session: Session, channel: Channel) {
   if (session.running) {
     send(session.ws, { type: 'status', state: 'listening' })
   }
-
-  if (channel === 'mic') session.micFlushing = false
-  else session.loopbackFlushing = false
 }
 
 function handleAudio(session: Session, data: Buffer) {
-  if (!session.running) return
+  if (!session.running || session.flushing) return
 
   const channel: Channel = data[0] === 0 ? 'mic' : 'loopback'
   // Float32Array requires 4-byte aligned offset; copy PCM bytes into a fresh ArrayBuffer
@@ -125,27 +95,11 @@ function handleAudio(session: Session, data: Buffer) {
   )
   const pcm = new Float32Array(ab)
 
-  if (channel === 'mic') {
-    session.micBuffer.push(pcm.slice())
-    session.micSamples += pcm.length
-    if (
-      session.micSamples >= session.sampleRate * FLUSH_SECONDS &&
-      !session.micFlushing
-    ) {
-      session.micFlushing = true
-      flushBuffer(session, 'mic')
-    }
-  } else {
-    session.loopbackBuffer.push(pcm.slice())
-    session.loopbackSamples += pcm.length
-    if (
-      session.loopbackSamples >= session.sampleRate * FLUSH_SECONDS &&
-      !session.loopbackFlushing
-    ) {
-      session.loopbackFlushing = true
-      flushBuffer(session, 'loopback')
-    }
-  }
+  // Each binary frame is a VAD-segmented speech chunk — transcribe directly
+  session.flushing = true
+  transcribeSegment(session, pcm, channel).finally(() => {
+    session.flushing = false
+  })
 }
 
 async function main() {
@@ -162,12 +116,7 @@ async function main() {
       sourceLang: 'zh',
       sampleRate: INCOMING_SAMPLE_RATE,
       running: false,
-      micBuffer: [],
-      loopbackBuffer: [],
-      micSamples: 0,
-      loopbackSamples: 0,
-      micFlushing: false,
-      loopbackFlushing: false,
+      flushing: false,
     }
 
     send(ws, { type: 'status', state: 'idle' })

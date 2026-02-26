@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Generated WASM/model assets (copied via postinstall)
+src/renderer/public/
+
 # Build output
 out/
 dist/
