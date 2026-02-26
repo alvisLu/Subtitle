@@ -1,0 +1,19 @@
+{
+  "name": "@tranbot/sidecar",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env --import tsx --watch src/server.ts",
+    "lint": "eslint src",
+    "fmt": "prettier --write src"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

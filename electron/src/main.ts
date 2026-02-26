@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { join, resolve } from 'path'
+import { existsSync } from 'fs'
 import { spawn, ChildProcess } from 'child_process'
 import WebSocket from 'ws'
 
@@ -7,12 +8,25 @@ let win: BrowserWindow | null = null
 let ws: WebSocket | null = null
 let sidecar: ChildProcess | null = null
 
+const SIDECAR_URL = process.env['SIDECAR_URL'] ?? 'ws://localhost:8765'
 const isDev = !!process.env['ELECTRON_RENDERER_URL']
-const projectRoot = isDev ? resolve(__dirname, '../..') : process.resourcesPath
+const electronRoot = isDev ? resolve(__dirname, '../..') : process.resourcesPath
+const sidecarRoot = isDev ? resolve(electronRoot, '../sidecar') : process.resourcesPath
+
+function findTsx(): string {
+  const workspaceRoot = resolve(electronRoot, '..')
+  const candidates = [
+    resolve(sidecarRoot, 'node_modules/.bin/tsx'),
+    resolve(workspaceRoot, 'node_modules/.bin/tsx'),
+  ]
+  const found = candidates.find(existsSync)
+  if (!found) throw new Error('[Main] tsx not found')
+  return found
+}
 
 function spawnSidecar(): ChildProcess {
-  const tsx = resolve(projectRoot, 'node_modules/.bin/tsx')
-  const script = resolve(projectRoot, 'src/sidecar/server.ts')
+  const tsx = findTsx()
+  const script = resolve(sidecarRoot, 'src/server.ts')
   const args = isDev ? ['watch', script] : [script]
   const proc = spawn(tsx, args, { stdio: 'inherit' })
   proc.on('error', (err) => console.error('[Main] Sidecar spawn error:', err))
@@ -23,7 +37,7 @@ async function connectSidecar(): Promise<WebSocket> {
   for (let i = 0; i < 20; i++) {
     try {
       return await new Promise<WebSocket>((resolve, reject) => {
-        const sock = new WebSocket('ws://localhost:8765')
+        const sock = new WebSocket(SIDECAR_URL)
         sock.once('open', () => resolve(sock))
         sock.once('error', reject)
       })
@@ -149,11 +163,11 @@ async function startSidecar() {
   // Try to reuse an already-running sidecar (e.g. hot-reload, leftover process)
   try {
     ws = await new Promise<WebSocket>((resolve, reject) => {
-      const sock = new WebSocket('ws://localhost:8765')
+      const sock = new WebSocket(SIDECAR_URL)
       sock.once('open', () => resolve(sock))
       sock.once('error', reject)
     })
-    console.log('[Main] Reusing existing sidecar on port 8765')
+    console.log(`[Main] Reusing existing sidecar at ${SIDECAR_URL}`)
     attachSidecarHandlers(ws)
     return
   } catch {

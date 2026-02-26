@@ -8,9 +8,10 @@ import { loadModel, transcribe, STT_BASE_CONFIG } from './stt.ts'
  * {"type":"start","sourceLang":"zh","sampleRate":16000}
  */
 
-const PORT = 8765
+const PORT = Number(process.env.PORT ?? 8765)
+const DEFAULT_LANG = process.env.DEFAULT_LANG ?? 'zh'
 // Fallback sample rate if client does not send sampleRate in start message
-const INCOMING_SAMPLE_RATE = 48000
+const INCOMING_SAMPLE_RATE = Number(process.env.INCOMING_SAMPLE_RATE ?? 48000)
 
 type Channel = 'mic' | 'loopback'
 
@@ -38,7 +39,7 @@ function handleControl(session: Session, raw: string) {
   }
 
   if (msg.type === 'start') {
-    session.sourceLang = msg.sourceLang ?? 'zh'
+    session.sourceLang = msg.sourceLang ?? DEFAULT_LANG
     session.sampleRate = msg.sampleRate ?? INCOMING_SAMPLE_RATE
     session.running = true
     send(session.ws, { type: 'status', state: 'listening' })
@@ -118,7 +119,7 @@ async function main() {
 
     const session: Session = {
       ws,
-      sourceLang: 'zh',
+      sourceLang: DEFAULT_LANG,
       sampleRate: INCOMING_SAMPLE_RATE,
       running: false,
       flushing: false,

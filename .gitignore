@@ -2,7 +2,7 @@
 node_modules/
 
 # Generated WASM/model assets (copied via postinstall)
-src/renderer/public/
+electron/src/renderer/public/
 
 # Build output
 out/
@@ -14,6 +14,7 @@ datas/
 # Environment
 .env
 .env.*
+!.env.example
 
 # IDE / tools
 .claude/

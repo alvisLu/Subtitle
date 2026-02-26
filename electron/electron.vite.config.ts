@@ -30,13 +30,13 @@ export default defineConfig({
   main: {
     build: {
       externalizeDeps: true,
-      lib: { entry: 'src/electron/main.ts' },
+      lib: { entry: 'src/main.ts' },
     },
   },
   preload: {
     build: {
       externalizeDeps: true,
-      lib: { entry: 'src/electron/preload.ts' },
+      lib: { entry: 'src/preload.ts' },
       rollupOptions: {
         output: {
           format: 'cjs',
