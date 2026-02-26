@@ -22,6 +22,9 @@ contextBridge.exposeInMainWorld('electron', {
   onStatus: (cb: (state: string) => void) =>
     ipcRenderer.on('status', (_e, state) => cb(state)),
 
+  onSttConfig: (cb: (config: Record<string, unknown>) => void) =>
+    ipcRenderer.on('stt-config', (_e, config) => cb(config)),
+
   removeAllListeners: (channel: string) =>
     ipcRenderer.removeAllListeners(channel),
 })

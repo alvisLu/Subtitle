@@ -1,5 +1,5 @@
 import { WebSocketServer, WebSocket } from 'ws'
-import { loadModel, transcribe } from './stt.ts'
+import { loadModel, transcribe, STT_BASE_CONFIG } from './stt.ts'
 
 /*
  * How to test:
@@ -42,6 +42,10 @@ function handleControl(session: Session, raw: string) {
     session.sampleRate = msg.sampleRate ?? INCOMING_SAMPLE_RATE
     session.running = true
     send(session.ws, { type: 'status', state: 'listening' })
+    send(session.ws, {
+      type: 'config',
+      config: { language: session.sourceLang, ...STT_BASE_CONFIG },
+    })
     console.log(`[Server] Started — lang: ${session.sourceLang}`)
   } else if (msg.type === 'setLang') {
     session.sourceLang = msg.sourceLang ?? session.sourceLang
@@ -58,6 +62,7 @@ async function transcribeSegment(
   pcm: Float32Array,
   channel: Channel,
 ) {
+
   // Skip silent audio as a safety net (VAD should have already filtered silence)
   const rms = Math.sqrt(pcm.reduce((s, v) => s + v * v, 0) / pcm.length)
   if (rms < 0.01) {

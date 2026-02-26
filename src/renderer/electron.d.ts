@@ -12,6 +12,7 @@ interface ElectronAPI {
     cb: (data: { channel: string; text: string; final: boolean }) => void,
   ): void
   onStatus(cb: (state: string) => void): void
+  onSttConfig(cb: (config: Record<string, unknown>) => void): void
   removeAllListeners(channel: string): void
 }
 

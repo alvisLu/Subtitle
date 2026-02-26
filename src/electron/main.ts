@@ -13,7 +13,8 @@ const projectRoot = isDev ? resolve(__dirname, '../..') : process.resourcesPath
 function spawnSidecar(): ChildProcess {
   const tsx = resolve(projectRoot, 'node_modules/.bin/tsx')
   const script = resolve(projectRoot, 'src/sidecar/server.ts')
-  const proc = spawn(tsx, [script], { stdio: 'inherit' })
+  const args = isDev ? ['watch', script] : [script]
+  const proc = spawn(tsx, args, { stdio: 'inherit' })
   proc.on('error', (err) => console.error('[Main] Sidecar spawn error:', err))
   return proc
 }
@@ -33,6 +34,17 @@ async function connectSidecar(): Promise<WebSocket> {
   throw new Error('[Main] Sidecar connection timeout (10s)')
 }
 
+async function scheduleReconnect() {
+  await new Promise((r) => setTimeout(r, 1500))
+  try {
+    ws = await connectSidecar()
+    console.log('[Main] Reconnected to sidecar after file change')
+    attachSidecarHandlers(ws)
+  } catch (err) {
+    console.error('[Main] Failed to reconnect to sidecar:', err)
+  }
+}
+
 function attachSidecarHandlers(sock: WebSocket) {
   sock.on('message', (data) => {
     if (!win) return
@@ -46,6 +58,8 @@ function attachSidecarHandlers(sock: WebSocket) {
         })
       } else if (msg.type === 'status') {
         win.webContents.send('status', msg.state)
+      } else if (msg.type === 'config') {
+        win.webContents.send('stt-config', msg.config)
       } else if (msg.type === 'error') {
         console.error('[Sidecar]', msg.message)
       }
@@ -57,6 +71,7 @@ function attachSidecarHandlers(sock: WebSocket) {
   sock.on('close', () => {
     console.log('[Main] Sidecar WS disconnected')
     ws = null
+    if (isDev) scheduleReconnect()
   })
 
   sock.on('error', (err) => {

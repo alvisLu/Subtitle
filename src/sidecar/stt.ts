@@ -8,6 +8,18 @@ const MODELS: Record<ModelSize, string> = {
   small: 'onnx-community/whisper-small',
 }
 
+export const STT_BASE_CONFIG = {
+  task: 'transcribe',
+  num_beams: 5,
+  temperature: 0,
+  do_sample: false,
+  condition_on_previous_text: false,
+  ompression_ratio_threshold: 1.35,
+  // no_repeat_ngram_size: 5,
+  no_speech_threshold: 0.3,
+  logprob_threshold: -1.0,
+}
+
 // Pipeline union type is too complex for TS to represent directly
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let transcriber: any = null
@@ -30,17 +42,8 @@ export async function transcribe(
   const resampled = sampleRate === 16000 ? audio : resample(audio, sampleRate)
 
   const t = Date.now()
-  const result = await transcriber(resampled, {
-    language,
-    task: 'transcribe',
-    num_beams: 1,
-    temperature: 0,
-    do_sample: true,
-    condition_on_previous_text: false,
-    no_repeat_ngram_size: 5,
-    no_speech_threshold: 0.6,
-    logprob_threshold: -1.0,
-  })
+  const config = { language, ...STT_BASE_CONFIG }
+  const result = await transcriber(resampled, config)
   const text: string = (
     Array.isArray(result)
       ? result.map((r: { text: string }) => r.text).join('')

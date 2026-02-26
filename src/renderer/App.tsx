@@ -34,8 +34,12 @@ export default function App() {
     window.electron.onTranscript(({ text }) => {
       setTranscript(text)
     })
+    window.electron.onSttConfig((config) => {
+      console.log('[STT] STT_BASE_CONFIG', config)
+    })
     return () => {
       window.electron.removeAllListeners('transcript')
+      window.electron.removeAllListeners('stt-config')
     }
   }, [])
 
