@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "postinstall": "node scripts/copy-wasm-assets.mjs",
+    "postinstall": "node scripts/copy-wasm-assets.mjs && node scripts/fix-electron-symlinks.mjs",
     "dev": "ELECTRON_RUN_AS_NODE= electron-vite dev",
     "build": "electron-vite build",
     "sidecar": "tsx src/sidecar/server.ts",
