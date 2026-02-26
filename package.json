@@ -6,7 +6,7 @@
     "postinstall": "node scripts/copy-wasm-assets.mjs && node scripts/fix-electron-symlinks.mjs",
     "dev": "ELECTRON_RUN_AS_NODE= electron-vite dev",
     "build": "electron-vite build",
-    "sidecar": "tsx watch src/sidecar/server.ts",
+    "sidecar": "node --env-file=.env.sidecar --import tsx --watch src/sidecar/server.ts",
     "test:stt": "tsx src/sidecar/test-stt.ts",
     "test:server": "tsx src/sidecar/test-server.ts",
     "lint": "eslint src",
