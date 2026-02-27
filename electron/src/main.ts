@@ -1,40 +1,16 @@
+import 'dotenv/config'
 import { app, BrowserWindow, ipcMain } from 'electron'
-import { join, resolve } from 'path'
-import { existsSync } from 'fs'
-import { spawn, ChildProcess } from 'child_process'
+import { join } from 'path'
 import WebSocket from 'ws'
 
 let win: BrowserWindow | null = null
 let ws: WebSocket | null = null
-let sidecar: ChildProcess | null = null
 
-const SIDECAR_URL = process.env['SIDECAR_URL'] ?? 'ws://localhost:8765'
-const isDev = !!process.env['ELECTRON_RENDERER_URL']
-const electronRoot = isDev ? resolve(__dirname, '../..') : process.resourcesPath
-const sidecarRoot = isDev ? resolve(electronRoot, '../sidecar') : process.resourcesPath
-
-function findTsx(): string {
-  const workspaceRoot = resolve(electronRoot, '..')
-  const candidates = [
-    resolve(sidecarRoot, 'node_modules/.bin/tsx'),
-    resolve(workspaceRoot, 'node_modules/.bin/tsx'),
-  ]
-  const found = candidates.find(existsSync)
-  if (!found) throw new Error('[Main] tsx not found')
-  return found
-}
-
-function spawnSidecar(): ChildProcess {
-  const tsx = findTsx()
-  const script = resolve(sidecarRoot, 'src/server.ts')
-  const args = isDev ? ['watch', script] : [script]
-  const proc = spawn(tsx, args, { stdio: 'inherit' })
-  proc.on('error', (err) => console.error('[Main] Sidecar spawn error:', err))
-  return proc
-}
+const SIDECAR_URL = process.env.SIDECAR_URL ?? 'ws://localhost:8765'
+const isDev = !!process.env.ELECTRON_RENDERER_URL
 
 async function connectSidecar(): Promise<WebSocket> {
-  for (let i = 0; i < 20; i++) {
+  while (true) {
     try {
       return await new Promise<WebSocket>((resolve, reject) => {
         const sock = new WebSocket(SIDECAR_URL)
@@ -42,21 +18,17 @@ async function connectSidecar(): Promise<WebSocket> {
         sock.once('error', reject)
       })
     } catch {
-      await new Promise((r) => setTimeout(r, 500))
+      console.log(`[Main] Waiting for sidecar at ${SIDECAR_URL} ...`)
+      await new Promise((r) => setTimeout(r, 2000))
     }
   }
-  throw new Error('[Main] Sidecar connection timeout (10s)')
 }
 
 async function scheduleReconnect() {
-  await new Promise((r) => setTimeout(r, 1500))
-  try {
-    ws = await connectSidecar()
-    console.log('[Main] Reconnected to sidecar after file change')
-    attachSidecarHandlers(ws)
-  } catch (err) {
-    console.error('[Main] Failed to reconnect to sidecar:', err)
-  }
+  ws = null
+  ws = await connectSidecar()
+  console.log('[Main] Reconnected to sidecar')
+  attachSidecarHandlers(ws)
 }
 
 function attachSidecarHandlers(sock: WebSocket) {
@@ -84,8 +56,7 @@ function attachSidecarHandlers(sock: WebSocket) {
 
   sock.on('close', () => {
     console.log('[Main] Sidecar WS disconnected')
-    ws = null
-    if (isDev) scheduleReconnect()
+    scheduleReconnect()
   })
 
   sock.on('error', (err) => {
@@ -104,7 +75,7 @@ function createWindow() {
   })
 
   if (isDev) {
-    win.loadURL(process.env['ELECTRON_RENDERER_URL']!)
+    win.loadURL(process.env.ELECTRON_RENDERER_URL!)
     win.webContents.openDevTools()
   } else {
     win.loadFile(join(__dirname, '../renderer/index.html'))
@@ -159,45 +130,16 @@ ipcMain.on('audio:chunk', (_e, buffer: ArrayBuffer, channel: 0 | 1) => {
   ws.send(frame)
 })
 
-async function startSidecar() {
-  // Try to reuse an already-running sidecar (e.g. hot-reload, leftover process)
-  try {
-    ws = await new Promise<WebSocket>((resolve, reject) => {
-      const sock = new WebSocket(SIDECAR_URL)
-      sock.once('open', () => resolve(sock))
-      sock.once('error', reject)
-    })
-    console.log(`[Main] Reusing existing sidecar at ${SIDECAR_URL}`)
-    attachSidecarHandlers(ws)
-    return
-  } catch {
-    // No existing sidecar — spawn one
-  }
-
-  sidecar = spawnSidecar()
-  sidecar.on('exit', (code) => {
-    console.log('[Main] Sidecar exited with code', code)
-    sidecar = null
-    ws = null
-  })
-
-  try {
-    ws = await connectSidecar()
-    console.log('[Main] Connected to sidecar')
-    attachSidecarHandlers(ws)
-  } catch (err) {
-    console.error('[Main] Failed to connect to sidecar:', err)
-  }
-}
-
 app.whenReady().then(async () => {
   createWindow()
-  await startSidecar()
+  console.log(`[Main] Connecting to sidecar at ${SIDECAR_URL} ...`)
+  ws = await connectSidecar()
+  console.log('[Main] Connected to sidecar')
+  attachSidecarHandlers(ws)
 })
 
 app.on('before-quit', () => {
   ws?.close()
-  sidecar?.kill()
 })
 
 app.on('window-all-closed', () => {
