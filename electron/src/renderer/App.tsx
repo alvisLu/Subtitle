@@ -3,7 +3,7 @@ import { MicVAD } from '@ricky0123/vad-web'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Mic, MicOff } from 'lucide-react'
+import { Mic, MicOff, Play, Square, Trash2 } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -11,6 +11,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+
+const SAMPLE_RATE = 16000
+
+type Recording = {
+  id: number
+  audio: Float32Array
+  duration: number
+  timestamp: Date
+}
 
 const LANGUAGES = [
   { code: 'zh', label: '中文' },
@@ -26,8 +35,13 @@ export default function App() {
   const [volume, setVolume] = useState(0)
   const [transcript, setTranscript] = useState('')
   const [sourceLang, setSourceLang] = useState('zh')
+  const [recordings, setRecordings] = useState<Recording[]>([])
+  const [playingId, setPlayingId] = useState<number | null>(null)
 
   const vadRef = useRef<MicVAD | null>(null)
+  const nextIdRef = useRef(0)
+  const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null)
+  const audioCtxRef = useRef<AudioContext | null>(null)
 
   useEffect(() => {
     if (!window.electron) return
@@ -43,6 +57,35 @@ export default function App() {
     }
   }, [])
 
+  const stopPlayback = useCallback(() => {
+    sourceNodeRef.current?.stop()
+    sourceNodeRef.current = null
+    setPlayingId(null)
+  }, [])
+
+  const playRecording = useCallback(
+    (rec: Recording) => {
+      stopPlayback()
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+        audioCtxRef.current = new AudioContext({ sampleRate: SAMPLE_RATE })
+      }
+      const ctx = audioCtxRef.current
+      const buffer = ctx.createBuffer(1, rec.audio.length, SAMPLE_RATE)
+      buffer.copyToChannel(rec.audio, 0)
+      const source = ctx.createBufferSource()
+      source.buffer = buffer
+      source.connect(ctx.destination)
+      source.onended = () => {
+        setPlayingId((id) => (id === rec.id ? null : id))
+        sourceNodeRef.current = null
+      }
+      source.start()
+      sourceNodeRef.current = source
+      setPlayingId(rec.id)
+    },
+    [stopPlayback],
+  )
+
   const start = useCallback(async () => {
     const myvad = await MicVAD.new({
       // Static assets served from renderer publicDir (src/renderer/public/)
@@ -54,6 +97,17 @@ export default function App() {
         // audio is Float32Array at 16kHz — send complete speech segment
         window.electron?.sendAudio(audio.buffer as ArrayBuffer, 0)
         setVolume(0)
+        // save for playback
+        const id = nextIdRef.current++
+        setRecordings((prev) => [
+          ...prev,
+          {
+            id,
+            audio: audio.slice(),
+            duration: audio.length / SAMPLE_RATE,
+            timestamp: new Date(),
+          },
+        ])
       },
       onVADMisfire: () => setVolume(0),
       onFrameProcessed: (prob) => {
@@ -150,6 +204,57 @@ export default function App() {
           {transcript && (
             <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground break-words">
               {transcript}
+            </div>
+          )}
+
+          {recordings.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">
+                  錄音片段 ({recordings.length})
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => {
+                    stopPlayback()
+                    setRecordings([])
+                  }}
+                  title="清除全部"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {recordings.map((rec) => (
+                  <div
+                    key={rec.id}
+                    className="flex items-center gap-2 rounded-md bg-muted px-2 py-1 text-xs"
+                  >
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0"
+                      onClick={() =>
+                        playingId === rec.id ? stopPlayback() : playRecording(rec)
+                      }
+                    >
+                      {playingId === rec.id ? (
+                        <Square className="h-3 w-3" />
+                      ) : (
+                        <Play className="h-3 w-3" />
+                      )}
+                    </Button>
+                    <span className="flex-1 text-muted-foreground">
+                      {rec.timestamp.toLocaleTimeString()}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {rec.duration.toFixed(1)}s
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </CardContent>
