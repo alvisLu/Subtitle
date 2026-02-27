@@ -72,20 +72,22 @@ export function denoiseAudio(
 }
 
 /** Parse a binary audio frame from the client.
- *  Frame format: [channel byte (0=mic, 1=loopback)][Float32 PCM bytes...]
+ *  Frame format: [isFinal byte (0=interim, 1=final)][channel byte (0=mic, 1=loopback)][Float32 PCM bytes...]
  */
 export function parseAudioFrame(data: Buffer): {
+  isFinal: boolean
   channel: 'mic' | 'loopback'
   pcm: Float32Array
 } {
-  const channel = data[0] === 0 ? 'mic' : 'loopback'
+  const isFinal = data[0] === 1
+  const channel = data[1] === 0 ? 'mic' : 'loopback'
   // Float32Array requires 4-byte aligned offset; copy PCM bytes into a fresh ArrayBuffer
-  const pcmByteLength = data.length - 1
+  const pcmByteLength = data.length - 2
   const ab = new ArrayBuffer(pcmByteLength)
   new Uint8Array(ab).set(
-    new Uint8Array(data.buffer, data.byteOffset + 1, pcmByteLength),
+    new Uint8Array(data.buffer, data.byteOffset + 2, pcmByteLength),
   )
-  return { channel, pcm: new Float32Array(ab) }
+  return { isFinal, channel, pcm: new Float32Array(ab) }
 }
 
 /** Build the denoised-PCM binary frame sent back to Electron: [0xDA][Float32Array bytes] */

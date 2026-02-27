@@ -36,7 +36,9 @@ export default function App() {
   const [recording, setRecording] = useState(false)
   const [volume, setVolume] = useState(0)
   const [transcript, setTranscript] = useState('')
+  const [transcriptInterim, setTranscriptInterim] = useState(false)
   const [translation, setTranslation] = useState('')
+  const [translationInterim, setTranslationInterim] = useState(false)
   const [mode, setMode] = useState<Mode>('transcript')
   const [sourceLang, setSourceLang] = useState('zh')
   const [recordings, setRecordings] = useState<Recording[]>([])
@@ -49,6 +51,8 @@ export default function App() {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('')
 
   const vadRef = useRef<MicVAD | null>(null)
+  const streamingFramesRef = useRef<Float32Array[]>([])
+  const isSpeakingRef = useRef(false)
   const nextIdRef = useRef(0)
   const nextDenoisedIdRef = useRef(0)
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null)
@@ -82,11 +86,13 @@ export default function App() {
 
   useEffect(() => {
     if (!window.electron) return
-    window.electron.onTranscript(({ text }) => {
+    window.electron.onTranscript(({ text, final }) => {
       setTranscript(text)
+      setTranscriptInterim(!final)
     })
-    window.electron.onTranslation(({ text }) => {
+    window.electron.onTranslation(({ text, final }) => {
       setTranslation(text)
+      setTranslationInterim(!final)
     })
     window.electron.onSttConfig((config) => {
       console.log('[STT] STT_BASE_CONFIG', config)
@@ -170,6 +176,14 @@ export default function App() {
     [stopPlayback],
   )
 
+  function mergeFrames(frames: Float32Array[]): Float32Array {
+    const total = frames.reduce((s, f) => s + f.length, 0)
+    const out = new Float32Array(total)
+    let offset = 0
+    for (const f of frames) { out.set(f, offset); offset += f.length }
+    return out
+  }
+
   const start = useCallback(async () => {
     const myvad = await MicVAD.new({
       // Static assets served from renderer publicDir (src/renderer/public/)
@@ -182,10 +196,22 @@ export default function App() {
             ? { deviceId: { exact: selectedDeviceId } }
             : true,
         }),
-      onSpeechStart: () => setVolume(1),
+      // Silero v5: 512 samples/frame @ 16kHz = 32ms; 16 frames ≈ 0.5s
+      onSpeechStart: () => {
+        isSpeakingRef.current = true
+        streamingFramesRef.current = []
+        setVolume(1)
+      },
       onSpeechEnd: (audio: Float32Array) => {
-        // audio is Float32Array at 16kHz — send complete speech segment
-        window.electron?.sendAudio(audio.buffer as ArrayBuffer, 0)
+        isSpeakingRef.current = false
+        // Send any remaining buffered frames as a last interim chunk
+        if (streamingFramesRef.current.length > 0) {
+          const merged = mergeFrames(streamingFramesRef.current)
+          streamingFramesRef.current = []
+          window.electron?.sendAudio(merged.buffer as ArrayBuffer, 0, false)
+        }
+        // Send the complete VAD segment as the final authoritative chunk
+        window.electron?.sendAudio(audio.buffer as ArrayBuffer, 0, true)
         setVolume(0)
         // save for playback
         const id = nextIdRef.current++
@@ -199,10 +225,20 @@ export default function App() {
           ...prev,
         ])
       },
-      onVADMisfire: () => setVolume(0),
-      onFrameProcessed: (prob) => {
+      onVADMisfire: () => {
+        isSpeakingRef.current = false
+        streamingFramesRef.current = []
+        setVolume(0)
+      },
+      onFrameProcessed: (prob, frame) => {
         if (!vadRef.current?.listening) return
         setVolume(prob.isSpeech)
+        if (!isSpeakingRef.current) return
+        streamingFramesRef.current.push(new Float32Array(frame))
+        if (streamingFramesRef.current.length >= 16) {
+          const chunks = streamingFramesRef.current.splice(0, 16)
+          window.electron?.sendAudio(mergeFrames(chunks).buffer as ArrayBuffer, 0, false)
+        }
       },
     })
 
@@ -334,26 +370,29 @@ export default function App() {
           </Button>
 
           {mode === 'transcript' && transcript && (
-            <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground break-words">
+            <div className={`rounded-md bg-muted p-3 text-sm break-words transition-opacity ${transcriptInterim ? 'italic opacity-60' : 'text-muted-foreground'}`}>
               {transcript}
+              {transcriptInterim && <span className="animate-pulse"> ···</span>}
             </div>
           )}
 
           {mode === 'translate' && transcript && (
-            <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground break-words">
+            <div className={`rounded-md bg-muted p-3 text-sm break-words transition-opacity ${transcriptInterim ? 'italic opacity-60' : 'text-muted-foreground'}`}>
               <div className="text-xs font-medium text-foreground mb-1">
                 原文
               </div>
               {transcript}
+              {transcriptInterim && <span className="animate-pulse"> ···</span>}
             </div>
           )}
 
           {mode === 'translate' && translation && (
-            <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground break-words">
+            <div className={`rounded-md bg-muted p-3 text-sm break-words transition-opacity ${translationInterim ? 'italic opacity-60' : 'text-muted-foreground'}`}>
               <div className="text-xs font-medium text-foreground mb-1">
                 翻譯
               </div>
               {translation}
+              {translationInterim && <span className="animate-pulse"> ···</span>}
             </div>
           )}
 

@@ -150,13 +150,14 @@ ipcMain.on('session:setMode', (_e, mode: string) => {
   }
 })
 
-// IPC: audio chunks from Renderer → prepend channel byte → forward to sidecar
-ipcMain.on('audio:chunk', (_e, buffer: ArrayBuffer, channel: 0 | 1) => {
+// IPC: audio chunks from Renderer → prepend [isFinal][channel] → forward to sidecar
+ipcMain.on('audio:chunk', (_e, buffer: ArrayBuffer, channel: 0 | 1, isFinal: boolean) => {
   if (!ws || ws.readyState !== WebSocket.OPEN) return
   const pcmBytes = new Uint8Array(buffer)
-  const frame = new Uint8Array(1 + pcmBytes.byteLength)
-  frame[0] = channel
-  frame.set(pcmBytes, 1)
+  const frame = new Uint8Array(2 + pcmBytes.byteLength)
+  frame[0] = isFinal ? 1 : 0
+  frame[1] = channel
+  frame.set(pcmBytes, 2)
   ws.send(frame)
 })
 

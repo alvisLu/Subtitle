@@ -16,8 +16,8 @@ contextBridge.exposeInMainWorld('electron', {
   setMode: (mode: 'transcript' | 'translate') =>
     ipcRenderer.send('session:setMode', mode),
 
-  sendAudio: (buffer: ArrayBuffer, channel: 0 | 1) =>
-    ipcRenderer.send('audio:chunk', buffer, channel),
+  sendAudio: (buffer: ArrayBuffer, channel: 0 | 1, isFinal = true) =>
+    ipcRenderer.send('audio:chunk', buffer, channel, isFinal),
 
   onTranscript: (
     cb: (data: { channel: string; text: string; final: boolean }) => void,

@@ -28,8 +28,13 @@ interface Session {
   sampleRate: number
   mode: Mode
   running: boolean
-  // Prevent concurrent STT calls
-  flushing: boolean
+  // Unified flag: true while any Whisper call is in-flight
+  processing: boolean
+  // Accumulated interim PCM frames (growing window since speech start)
+  streamBuffer: Float32Array[]
+  interimTimer: ReturnType<typeof setTimeout> | null
+  // Queued final segment waiting for current processing to finish
+  pendingFinal: { pcm: Float32Array; channel: Channel } | null
 }
 
 function send(ws: WebSocket, payload: object) {
@@ -74,6 +79,46 @@ function handleControl(session: Session, raw: string) {
     session.running = false
     send(session.ws, { type: 'status', state: 'idle' })
     console.log('[Server] Stopped')
+  }
+}
+
+function mergeBuffer(chunks: Float32Array[]): Float32Array {
+  const total = chunks.reduce((s, f) => s + f.length, 0)
+  const out = new Float32Array(total)
+  let offset = 0
+  for (const f of chunks) { out.set(f, offset); offset += f.length }
+  return out
+}
+
+function runPendingFinal(session: Session) {
+  if (!session.pendingFinal) return
+  const { pcm, channel } = session.pendingFinal
+  session.pendingFinal = null
+  session.processing = true
+  transcribeSegment(session, pcm, channel).finally(() => {
+    session.processing = false
+  })
+}
+
+async function transcribeInterim(
+  session: Session,
+  pcm: Float32Array,
+  channel: Channel,
+) {
+  // Skip near-silent interim frames (Float32 RMS < 0.01 ≈ inaudible)
+  if (rms(pcm) < 0.01) return
+  const denoised = denoiseAudio(pcm, session.sampleRate)
+  try {
+    if (session.mode === 'translate') {
+      const { original, translated } = await translate(denoised, session.sampleRate, session.sourceLang)
+      if (original) send(session.ws, { type: 'transcript', channel, text: original, final: false })
+      if (translated) send(session.ws, { type: 'translation', channel, text: translated, final: false })
+    } else {
+      const text = await transcribe(denoised, session.sampleRate, session.sourceLang)
+      if (text) send(session.ws, { type: 'transcript', channel, text, final: false })
+    }
+  } catch {
+    // ignore interim errors silently
   }
 }
 
@@ -143,14 +188,38 @@ async function transcribeSegment(
 }
 
 function handleAudio(session: Session, data: Buffer) {
-  if (!session.running || session.flushing) return
+  if (!session.running) return
 
-  const { channel, pcm } = parseAudioFrame(data)
+  const { isFinal, channel, pcm } = parseAudioFrame(data)
 
-  // Each binary frame is a VAD-segmented speech chunk — transcribe directly
-  session.flushing = true
+  if (!isFinal) {
+    // Interim chunk: append to growing buffer, debounce Whisper run
+    session.streamBuffer.push(pcm)
+    if (session.interimTimer) clearTimeout(session.interimTimer)
+    session.interimTimer = setTimeout(() => {
+      session.interimTimer = null
+      if (session.processing || session.streamBuffer.length === 0) return
+      const merged = mergeBuffer(session.streamBuffer)
+      session.processing = true
+      transcribeInterim(session, merged, channel).finally(() => {
+        session.processing = false
+        runPendingFinal(session)
+      })
+    }, 200)
+    return
+  }
+
+  // Final chunk: clear stream state, run definitive transcription
+  if (session.interimTimer) { clearTimeout(session.interimTimer); session.interimTimer = null }
+  session.streamBuffer = []
+
+  if (session.processing) {
+    session.pendingFinal = { pcm, channel }
+    return
+  }
+  session.processing = true
   transcribeSegment(session, pcm, channel).finally(() => {
-    session.flushing = false
+    session.processing = false
   })
 }
 
@@ -169,7 +238,10 @@ async function main() {
       sampleRate: INCOMING_SAMPLE_RATE,
       mode: 'transcript',
       running: false,
-      flushing: false,
+      processing: false,
+      streamBuffer: [],
+      interimTimer: null,
+      pendingFinal: null,
     }
 
     send(ws, { type: 'status', state: 'idle' })

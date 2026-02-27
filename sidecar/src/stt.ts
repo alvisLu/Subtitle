@@ -14,8 +14,8 @@ export const STT_BASE_CONFIG = {
   temperature: 0,
   do_sample: false,
   condition_on_previous_text: false,
-  ompression_ratio_threshold: 1.35,
-  // no_repeat_ngram_size: 5,
+  compression_ratio_threshold: 2.4,
+  no_repeat_ngram_size: 5,
   no_speech_threshold: 0.3,
   logprob_threshold: -1.0,
 }
