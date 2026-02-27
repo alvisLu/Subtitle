@@ -25,6 +25,9 @@ contextBridge.exposeInMainWorld('electron', {
   onSttConfig: (cb: (config: Record<string, unknown>) => void) =>
     ipcRenderer.on('stt-config', (_e, config) => cb(config)),
 
+  onDenoisedAudio: (cb: (buffer: ArrayBuffer) => void) =>
+    ipcRenderer.on('denoised-audio', (_e, buffer) => cb(buffer)),
+
   removeAllListeners: (channel: string) =>
     ipcRenderer.removeAllListeners(channel),
 })

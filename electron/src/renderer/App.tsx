@@ -37,10 +37,14 @@ export default function App() {
   const [sourceLang, setSourceLang] = useState('zh')
   const [recordings, setRecordings] = useState<Recording[]>([])
   const [playingId, setPlayingId] = useState<number | null>(null)
+  const [denoisedRecordings, setDenoisedRecordings] = useState<Recording[]>([])
+  const [playingDenoisedId, setPlayingDenoisedId] = useState<number | null>(null)
 
   const vadRef = useRef<MicVAD | null>(null)
   const nextIdRef = useRef(0)
+  const nextDenoisedIdRef = useRef(0)
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null)
+  const denoisedSourceNodeRef = useRef<AudioBufferSourceNode | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
 
   useEffect(() => {
@@ -51,9 +55,18 @@ export default function App() {
     window.electron.onSttConfig((config) => {
       console.log('[STT] STT_BASE_CONFIG', config)
     })
+    window.electron.onDenoisedAudio((buffer) => {
+      const audio = new Float32Array(buffer)
+      const id = nextDenoisedIdRef.current++
+      setDenoisedRecordings((prev) => [
+        { id, audio, duration: audio.length / SAMPLE_RATE, timestamp: new Date() },
+        ...prev,
+      ])
+    })
     return () => {
       window.electron.removeAllListeners('transcript')
       window.electron.removeAllListeners('stt-config')
+      window.electron.removeAllListeners('denoised-audio')
     }
   }, [])
 
@@ -62,6 +75,35 @@ export default function App() {
     sourceNodeRef.current = null
     setPlayingId(null)
   }, [])
+
+  const stopDenoisedPlayback = useCallback(() => {
+    denoisedSourceNodeRef.current?.stop()
+    denoisedSourceNodeRef.current = null
+    setPlayingDenoisedId(null)
+  }, [])
+
+  const playDenoisedRecording = useCallback(
+    (rec: Recording) => {
+      stopDenoisedPlayback()
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+        audioCtxRef.current = new AudioContext({ sampleRate: SAMPLE_RATE })
+      }
+      const ctx = audioCtxRef.current
+      const buffer = ctx.createBuffer(1, rec.audio.length, SAMPLE_RATE)
+      buffer.copyToChannel(rec.audio, 0)
+      const source = ctx.createBufferSource()
+      source.buffer = buffer
+      source.connect(ctx.destination)
+      source.onended = () => {
+        setPlayingDenoisedId((id) => (id === rec.id ? null : id))
+        denoisedSourceNodeRef.current = null
+      }
+      source.start()
+      denoisedSourceNodeRef.current = source
+      setPlayingDenoisedId(rec.id)
+    },
+    [stopDenoisedPlayback],
+  )
 
   const playRecording = useCallback(
     (rec: Recording) => {
@@ -100,13 +142,13 @@ export default function App() {
         // save for playback
         const id = nextIdRef.current++
         setRecordings((prev) => [
-          ...prev,
           {
             id,
             audio: audio.slice(),
             duration: audio.length / SAMPLE_RATE,
             timestamp: new Date(),
           },
+          ...prev,
         ])
       },
       onVADMisfire: () => setVolume(0),
@@ -207,11 +249,65 @@ export default function App() {
             </div>
           )}
 
+          {/* Denoised segments returned from sidecar */}
+          {denoisedRecordings.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Denoised ({denoisedRecordings.length})
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => {
+                    stopDenoisedPlayback()
+                    setDenoisedRecordings([])
+                  }}
+                  title="Clear all"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {denoisedRecordings.map((rec) => (
+                  <div
+                    key={rec.id}
+                    className="flex items-center gap-2 rounded-md bg-muted px-2 py-1 text-xs"
+                  >
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0"
+                      onClick={() =>
+                        playingDenoisedId === rec.id
+                          ? stopDenoisedPlayback()
+                          : playDenoisedRecording(rec)
+                      }
+                    >
+                      {playingDenoisedId === rec.id ? (
+                        <Square className="h-3 w-3" />
+                      ) : (
+                        <Play className="h-3 w-3" />
+                      )}
+                    </Button>
+                    <span className="flex-1 text-muted-foreground">
+                      {rec.timestamp.toLocaleTimeString()}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {rec.duration.toFixed(1)}s
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {recordings.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-muted-foreground">
-                  錄音片段 ({recordings.length})
+                  Raw Recordings ({recordings.length})
                 </span>
                 <Button
                   variant="ghost"
@@ -221,7 +317,7 @@ export default function App() {
                     stopPlayback()
                     setRecordings([])
                   }}
-                  title="清除全部"
+                  title="Clear all"
                 >
                   <Trash2 className="h-3 w-3" />
                 </Button>

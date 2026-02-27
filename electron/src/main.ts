@@ -32,8 +32,21 @@ async function scheduleReconnect() {
 }
 
 function attachSidecarHandlers(sock: WebSocket) {
-  sock.on('message', (data) => {
+  sock.on('message', (data, isBinary) => {
     if (!win) return
+
+    // Binary frame: denoised audio [0xDA][Float32Array bytes]
+    if (isBinary) {
+      const buf = data as Buffer
+      if (buf[0] === 0xda) {
+        const pcmBuf = buf.subarray(1)
+        // Copy into a clean ArrayBuffer so IPC can transfer it
+        const ab = pcmBuf.buffer.slice(pcmBuf.byteOffset, pcmBuf.byteOffset + pcmBuf.byteLength)
+        win.webContents.send('denoised-audio', ab)
+      }
+      return
+    }
+
     try {
       const msg = JSON.parse(data.toString())
       if (msg.type === 'transcript') {

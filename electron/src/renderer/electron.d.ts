@@ -13,6 +13,7 @@ interface ElectronAPI {
   ): void
   onStatus(cb: (state: string) => void): void
   onSttConfig(cb: (config: Record<string, unknown>) => void): void
+  onDenoisedAudio(cb: (buffer: ArrayBuffer) => void): void
   removeAllListeners(channel: string): void
 }
 
