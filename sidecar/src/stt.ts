@@ -45,7 +45,8 @@ export async function translate(
   const [transcribeResult, translateResult] = await Promise.all([
     transcriber(resampled, { language, ...STT_BASE_CONFIG }),
     transcriber(resampled, {
-      language, ...STT_BASE_CONFIG,
+      language,
+      ...STT_BASE_CONFIG,
       task: 'translate',
     }),
   ])

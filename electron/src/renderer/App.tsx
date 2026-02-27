@@ -73,7 +73,10 @@ export default function App() {
     navigator.mediaDevices.addEventListener('devicechange', refreshAudioDevices)
     return () => {
       cancelled = true
-      navigator.mediaDevices.removeEventListener('devicechange', refreshAudioDevices)
+      navigator.mediaDevices.removeEventListener(
+        'devicechange',
+        refreshAudioDevices,
+      )
     }
   }, [])
 
@@ -338,14 +341,18 @@ export default function App() {
 
           {mode === 'translate' && transcript && (
             <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground break-words">
-              <div className="text-xs font-medium text-foreground mb-1">原文</div>
+              <div className="text-xs font-medium text-foreground mb-1">
+                原文
+              </div>
               {transcript}
             </div>
           )}
 
           {mode === 'translate' && translation && (
             <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground break-words">
-              <div className="text-xs font-medium text-foreground mb-1">翻譯</div>
+              <div className="text-xs font-medium text-foreground mb-1">
+                翻譯
+              </div>
               {translation}
             </div>
           )}

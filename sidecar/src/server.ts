@@ -38,11 +38,13 @@ function send(ws: WebSocket, payload: object) {
   }
 }
 
-function handleControl(
-  session: Session,
-  raw: string,
-) {
-  let msg: { type: string; sourceLang?: string; sampleRate?: number; mode?: Mode }
+function handleControl(session: Session, raw: string) {
+  let msg: {
+    type: string
+    sourceLang?: string
+    sampleRate?: number
+    mode?: Mode
+  }
   try {
     msg = JSON.parse(raw)
   } catch {
@@ -59,7 +61,9 @@ function handleControl(
       type: 'config',
       config: { language: session.sourceLang, ...STT_BASE_CONFIG },
     })
-    console.log(`[Server] Started — lang: ${session.sourceLang}, mode: ${session.mode}`)
+    console.log(
+      `[Server] Started — lang: ${session.sourceLang}, mode: ${session.mode}`,
+    )
   } else if (msg.type === 'setLang') {
     session.sourceLang = msg.sourceLang ?? session.sourceLang
     console.log(`[Server] Language changed to: ${session.sourceLang}`)
@@ -98,15 +102,33 @@ async function transcribeSegment(
 
   try {
     if (session.mode === 'translate') {
-      const { original, translated } = await translate(denoised, session.sampleRate, session.sourceLang)
+      const { original, translated } = await translate(
+        denoised,
+        session.sampleRate,
+        session.sourceLang,
+      )
       if (original) {
-        send(session.ws, { type: 'transcript', channel, text: original, final: true })
+        send(session.ws, {
+          type: 'transcript',
+          channel,
+          text: original,
+          final: true,
+        })
       }
       if (translated) {
-        send(session.ws, { type: 'translation', channel, text: translated, final: true })
+        send(session.ws, {
+          type: 'translation',
+          channel,
+          text: translated,
+          final: true,
+        })
       }
     } else {
-      const text = await transcribe(denoised, session.sampleRate, session.sourceLang)
+      const text = await transcribe(
+        denoised,
+        session.sampleRate,
+        session.sourceLang,
+      )
       if (text) {
         send(session.ws, { type: 'transcript', channel, text, final: true })
       }
