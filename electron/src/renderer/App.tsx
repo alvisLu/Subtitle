@@ -45,6 +45,8 @@ export default function App() {
   const [playingDenoisedId, setPlayingDenoisedId] = useState<number | null>(
     null,
   )
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('')
 
   const vadRef = useRef<MicVAD | null>(null)
   const nextIdRef = useRef(0)
@@ -52,6 +54,28 @@ export default function App() {
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null)
   const denoisedSourceNodeRef = useRef<AudioBufferSourceNode | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function refreshAudioDevices() {
+      const all = await navigator.mediaDevices.enumerateDevices()
+      if (cancelled) return
+      const inputs = all.filter((d) => d.kind === 'audioinput')
+      setAudioDevices(inputs)
+      setSelectedDeviceId((prev) => {
+        if (prev && inputs.some((d) => d.deviceId === prev)) return prev
+        return inputs[0]?.deviceId ?? ''
+      })
+    }
+
+    refreshAudioDevices()
+    navigator.mediaDevices.addEventListener('devicechange', refreshAudioDevices)
+    return () => {
+      cancelled = true
+      navigator.mediaDevices.removeEventListener('devicechange', refreshAudioDevices)
+    }
+  }, [])
 
   useEffect(() => {
     if (!window.electron) return
@@ -149,6 +173,12 @@ export default function App() {
       baseAssetPath: '/',
       onnxWASMBasePath: '/',
       model: 'v5',
+      getStream: () =>
+        navigator.mediaDevices.getUserMedia({
+          audio: selectedDeviceId
+            ? { deviceId: { exact: selectedDeviceId } }
+            : true,
+        }),
       onSpeechStart: () => setVolume(1),
       onSpeechEnd: (audio: Float32Array) => {
         // audio is Float32Array at 16kHz — send complete speech segment
@@ -185,7 +215,7 @@ export default function App() {
       sampleRate: 16000,
       mode,
     })
-  }, [sourceLang, mode])
+  }, [sourceLang, mode, selectedDeviceId])
 
   const stop = useCallback(async () => {
     await vadRef.current?.destroy()
@@ -248,6 +278,24 @@ export default function App() {
               {LANGUAGES.map((lang) => (
                 <SelectItem key={lang.code} value={lang.code}>
                   {lang.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Device selector */}
+          <Select
+            value={selectedDeviceId}
+            onValueChange={setSelectedDeviceId}
+            disabled={recording}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select microphone" />
+            </SelectTrigger>
+            <SelectContent>
+              {audioDevices.map((device) => (
+                <SelectItem key={device.deviceId} value={device.deviceId}>
+                  {device.label || `Microphone ${device.deviceId.slice(0, 8)}`}
                 </SelectItem>
               ))}
             </SelectContent>
