@@ -16,7 +16,7 @@ const SAMPLE_RATE = 16000
 
 type Recording = {
   id: number
-  audio: Float32Array
+  audio: Float32Array<ArrayBuffer>
   duration: number
   timestamp: Date
 }
