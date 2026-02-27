@@ -58,6 +58,12 @@ function attachSidecarHandlers(sock: WebSocket) {
           text: msg.text,
           final: msg.final,
         })
+      } else if (msg.type === 'translation') {
+        win.webContents.send('translation', {
+          channel: msg.channel,
+          text: msg.text,
+          final: msg.final,
+        })
       } else if (msg.type === 'status') {
         win.webContents.send('status', msg.state)
       } else if (msg.type === 'config') {
@@ -108,6 +114,7 @@ ipcMain.on(
       targetLang: string
       engine: string
       sampleRate: number
+      mode: string
     },
   ) => {
     console.log('[Main] session:start', config)
@@ -117,6 +124,7 @@ ipcMain.on(
           type: 'start',
           sourceLang: config.sourceLang,
           sampleRate: config.sampleRate,
+          mode: config.mode,
         }),
       )
     }
@@ -133,6 +141,12 @@ ipcMain.on('session:stop', () => {
 ipcMain.on('session:setLang', (_e, lang: string) => {
   if (ws?.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'setLang', sourceLang: lang }))
+  }
+})
+
+ipcMain.on('session:setMode', (_e, mode: string) => {
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'setMode', mode }))
   }
 })
 

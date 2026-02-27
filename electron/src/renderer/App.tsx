@@ -30,10 +30,14 @@ const LANGUAGES = [
   // { code: 'de', label: 'Deutsch' },
 ]
 
+type Mode = 'transcript' | 'translate'
+
 export default function App() {
   const [recording, setRecording] = useState(false)
   const [volume, setVolume] = useState(0)
   const [transcript, setTranscript] = useState('')
+  const [translation, setTranslation] = useState('')
+  const [mode, setMode] = useState<Mode>('transcript')
   const [sourceLang, setSourceLang] = useState('zh')
   const [recordings, setRecordings] = useState<Recording[]>([])
   const [playingId, setPlayingId] = useState<number | null>(null)
@@ -54,6 +58,9 @@ export default function App() {
     window.electron.onTranscript(({ text }) => {
       setTranscript(text)
     })
+    window.electron.onTranslation(({ text }) => {
+      setTranslation(text)
+    })
     window.electron.onSttConfig((config) => {
       console.log('[STT] STT_BASE_CONFIG', config)
     })
@@ -72,6 +79,7 @@ export default function App() {
     })
     return () => {
       window.electron.removeAllListeners('transcript')
+      window.electron.removeAllListeners('translation')
       window.electron.removeAllListeners('stt-config')
       window.electron.removeAllListeners('denoised-audio')
     }
@@ -175,8 +183,9 @@ export default function App() {
       targetLang: 'en',
       engine: 'deepl',
       sampleRate: 16000,
+      mode,
     })
-  }, [sourceLang])
+  }, [sourceLang, mode])
 
   const stop = useCallback(async () => {
     await vadRef.current?.destroy()
@@ -202,6 +211,27 @@ export default function App() {
         </CardHeader>
 
         <CardContent className="space-y-4">
+          {/* Mode selector */}
+          <div className="flex rounded-md overflow-hidden border border-border">
+            {(['transcript', 'translate'] as Mode[]).map((m) => (
+              <button
+                key={m}
+                className={`flex-1 py-1.5 text-sm font-medium transition-colors ${
+                  mode === m
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-background text-muted-foreground hover:bg-muted'
+                }`}
+                disabled={recording}
+                onClick={() => {
+                  setMode(m)
+                  if (recording) window.electron?.setMode(m)
+                }}
+              >
+                {m === 'transcript' ? 'Transcript' : 'Translation'}
+              </button>
+            ))}
+          </div>
+
           {/* Language selector */}
           <Select
             value={sourceLang}
@@ -252,9 +282,23 @@ export default function App() {
             )}
           </Button>
 
-          {transcript && (
+          {mode === 'transcript' && transcript && (
             <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground break-words">
               {transcript}
+            </div>
+          )}
+
+          {mode === 'translate' && transcript && (
+            <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground break-words">
+              <div className="text-xs font-medium text-foreground mb-1">原文</div>
+              {transcript}
+            </div>
+          )}
+
+          {mode === 'translate' && translation && (
+            <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground break-words">
+              <div className="text-xs font-medium text-foreground mb-1">翻譯</div>
+              {translation}
             </div>
           )}
 

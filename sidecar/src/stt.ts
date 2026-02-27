@@ -32,6 +32,40 @@ export async function loadModel(size: ModelSize = 'base'): Promise<void> {
   console.log(`[STT] Ready in ${Date.now() - t}ms`)
 }
 
+export async function translate(
+  audio: Float32Array,
+  sampleRate: number,
+  language = 'zh',
+): Promise<{ original: string; translated: string }> {
+  if (!transcriber) throw new Error('[STT] Call loadModel() first')
+
+  const resampled = sampleRate === 16000 ? audio : resample(audio, sampleRate)
+
+  const t = Date.now()
+  const [transcribeResult, translateResult] = await Promise.all([
+    transcriber(resampled, { language, ...STT_BASE_CONFIG }),
+    transcriber(resampled, {
+      language, ...STT_BASE_CONFIG,
+      task: 'translate',
+    }),
+  ])
+
+  const original: string = (
+    Array.isArray(transcribeResult)
+      ? transcribeResult.map((r: { text: string }) => r.text).join('')
+      : transcribeResult.text
+  ).trim()
+
+  const translated: string = (
+    Array.isArray(translateResult)
+      ? translateResult.map((r: { text: string }) => r.text).join('')
+      : translateResult.text
+  ).trim()
+
+  console.log(`[STT] ${Date.now() - t}ms → "${original}" → "${translated}"`)
+  return { original, translated }
+}
+
 export async function transcribe(
   audio: Float32Array,
   sampleRate: number,

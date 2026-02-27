@@ -1,5 +1,5 @@
 import { WebSocketServer, WebSocket } from 'ws'
-import { loadModel, transcribe, STT_BASE_CONFIG } from './stt.ts'
+import { loadModel, transcribe, translate, STT_BASE_CONFIG } from './stt.ts'
 import {
   denoiseAudio,
   parseAudioFrame,
@@ -20,11 +20,13 @@ const DEFAULT_LANG = process.env.DEFAULT_LANG ?? 'zh'
 const INCOMING_SAMPLE_RATE = Number(process.env.INCOMING_SAMPLE_RATE ?? 48000)
 
 type Channel = 'mic' | 'loopback'
+type Mode = 'transcript' | 'translate'
 
 interface Session {
   ws: WebSocket
   sourceLang: string
   sampleRate: number
+  mode: Mode
   running: boolean
   // Prevent concurrent STT calls
   flushing: boolean
@@ -36,8 +38,11 @@ function send(ws: WebSocket, payload: object) {
   }
 }
 
-function handleControl(session: Session, raw: string) {
-  let msg: { type: string; sourceLang?: string; sampleRate?: number }
+function handleControl(
+  session: Session,
+  raw: string,
+) {
+  let msg: { type: string; sourceLang?: string; sampleRate?: number; mode?: Mode }
   try {
     msg = JSON.parse(raw)
   } catch {
@@ -47,16 +52,20 @@ function handleControl(session: Session, raw: string) {
   if (msg.type === 'start') {
     session.sourceLang = msg.sourceLang ?? DEFAULT_LANG
     session.sampleRate = msg.sampleRate ?? INCOMING_SAMPLE_RATE
+    session.mode = msg.mode ?? 'transcript'
     session.running = true
     send(session.ws, { type: 'status', state: 'listening' })
     send(session.ws, {
       type: 'config',
       config: { language: session.sourceLang, ...STT_BASE_CONFIG },
     })
-    console.log(`[Server] Started — lang: ${session.sourceLang}`)
+    console.log(`[Server] Started — lang: ${session.sourceLang}, mode: ${session.mode}`)
   } else if (msg.type === 'setLang') {
     session.sourceLang = msg.sourceLang ?? session.sourceLang
     console.log(`[Server] Language changed to: ${session.sourceLang}`)
+  } else if (msg.type === 'setMode') {
+    session.mode = msg.mode ?? session.mode
+    console.log(`[Server] Mode changed to: ${session.mode}`)
   } else if (msg.type === 'stop') {
     session.running = false
     send(session.ws, { type: 'status', state: 'idle' })
@@ -88,13 +97,19 @@ async function transcribeSegment(
   send(session.ws, { type: 'status', state: 'processing' })
 
   try {
-    const text = await transcribe(
-      denoised,
-      session.sampleRate,
-      session.sourceLang,
-    )
-    if (text) {
-      send(session.ws, { type: 'transcript', channel, text, final: true })
+    if (session.mode === 'translate') {
+      const { original, translated } = await translate(denoised, session.sampleRate, session.sourceLang)
+      if (original) {
+        send(session.ws, { type: 'transcript', channel, text: original, final: true })
+      }
+      if (translated) {
+        send(session.ws, { type: 'translation', channel, text: translated, final: true })
+      }
+    } else {
+      const text = await transcribe(denoised, session.sampleRate, session.sourceLang)
+      if (text) {
+        send(session.ws, { type: 'transcript', channel, text, final: true })
+      }
     }
   } catch (err) {
     send(session.ws, { type: 'error', message: String(err) })
@@ -130,6 +145,7 @@ async function main() {
       ws,
       sourceLang: DEFAULT_LANG,
       sampleRate: INCOMING_SAMPLE_RATE,
+      mode: 'transcript',
       running: false,
       flushing: false,
     }
