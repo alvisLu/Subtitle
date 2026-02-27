@@ -38,7 +38,9 @@ export default function App() {
   const [recordings, setRecordings] = useState<Recording[]>([])
   const [playingId, setPlayingId] = useState<number | null>(null)
   const [denoisedRecordings, setDenoisedRecordings] = useState<Recording[]>([])
-  const [playingDenoisedId, setPlayingDenoisedId] = useState<number | null>(null)
+  const [playingDenoisedId, setPlayingDenoisedId] = useState<number | null>(
+    null,
+  )
 
   const vadRef = useRef<MicVAD | null>(null)
   const nextIdRef = useRef(0)
@@ -59,7 +61,12 @@ export default function App() {
       const audio = new Float32Array(buffer)
       const id = nextDenoisedIdRef.current++
       setDenoisedRecordings((prev) => [
-        { id, audio, duration: audio.length / SAMPLE_RATE, timestamp: new Date() },
+        {
+          id,
+          audio,
+          duration: audio.length / SAMPLE_RATE,
+          timestamp: new Date(),
+        },
         ...prev,
       ])
     })
@@ -189,7 +196,9 @@ export default function App() {
               {recording ? 'Recording' : 'Idle'}
             </Badge>
           </div>
-          <p className="text-sm text-muted-foreground">VAD: Silero v5 @ 16kHz</p>
+          <p className="text-sm text-muted-foreground">
+            VAD: Silero v5 @ 16kHz
+          </p>
         </CardHeader>
 
         <CardContent className="space-y-4">
@@ -333,7 +342,9 @@ export default function App() {
                       size="icon"
                       className="h-6 w-6 shrink-0"
                       onClick={() =>
-                        playingId === rec.id ? stopPlayback() : playRecording(rec)
+                        playingId === rec.id
+                          ? stopPlayback()
+                          : playRecording(rec)
                       }
                     >
                       {playingId === rec.id ? (

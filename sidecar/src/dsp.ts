@@ -47,7 +47,11 @@ function noiseGate(pcm: Float32Array, sampleRate: number): Float32Array {
  * RMS normalization — scales to TARGET_RMS, capped at MAX_GAIN
  * to avoid over-amplifying near-silent segments.
  */
-function normalizeRms(pcm: Float32Array, targetRms = 0.1, maxGain = 20.0): Float32Array {
+function normalizeRms(
+  pcm: Float32Array,
+  targetRms = 0.1,
+  maxGain = 20.0,
+): Float32Array {
   let sumSq = 0
   for (let i = 0; i < pcm.length; i++) sumSq += pcm[i] * pcm[i]
   const rms = Math.sqrt(sumSq / pcm.length)
@@ -58,7 +62,10 @@ function normalizeRms(pcm: Float32Array, targetRms = 0.1, maxGain = 20.0): Float
   return out
 }
 
-export function denoiseAudio(pcm: Float32Array, sampleRate: number): Float32Array {
+export function denoiseAudio(
+  pcm: Float32Array,
+  sampleRate: number,
+): Float32Array {
   const hp = highPassFilter(pcm, sampleRate)
   const gated = noiseGate(hp, sampleRate)
   return normalizeRms(gated)
@@ -67,12 +74,17 @@ export function denoiseAudio(pcm: Float32Array, sampleRate: number): Float32Arra
 /** Parse a binary audio frame from the client.
  *  Frame format: [channel byte (0=mic, 1=loopback)][Float32 PCM bytes...]
  */
-export function parseAudioFrame(data: Buffer): { channel: 'mic' | 'loopback'; pcm: Float32Array } {
+export function parseAudioFrame(data: Buffer): {
+  channel: 'mic' | 'loopback'
+  pcm: Float32Array
+} {
   const channel = data[0] === 0 ? 'mic' : 'loopback'
   // Float32Array requires 4-byte aligned offset; copy PCM bytes into a fresh ArrayBuffer
   const pcmByteLength = data.length - 1
   const ab = new ArrayBuffer(pcmByteLength)
-  new Uint8Array(ab).set(new Uint8Array(data.buffer, data.byteOffset + 1, pcmByteLength))
+  new Uint8Array(ab).set(
+    new Uint8Array(data.buffer, data.byteOffset + 1, pcmByteLength),
+  )
   return { channel, pcm: new Float32Array(ab) }
 }
 

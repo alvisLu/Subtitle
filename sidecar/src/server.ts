@@ -1,6 +1,11 @@
 import { WebSocketServer, WebSocket } from 'ws'
 import { loadModel, transcribe, STT_BASE_CONFIG } from './stt.ts'
-import { denoiseAudio, parseAudioFrame, buildDenoisedFrame, rms } from './dsp.ts'
+import {
+  denoiseAudio,
+  parseAudioFrame,
+  buildDenoisedFrame,
+  rms,
+} from './dsp.ts'
 
 /*
  * How to test:
@@ -59,11 +64,17 @@ function handleControl(session: Session, raw: string) {
   }
 }
 
-async function transcribeSegment(session: Session, pcm: Float32Array, channel: Channel) {
+async function transcribeSegment(
+  session: Session,
+  pcm: Float32Array,
+  channel: Channel,
+) {
   // Skip silent audio as a safety net (VAD should have already filtered silence)
   const segmentRms = rms(pcm)
   if (segmentRms < 0.01) {
-    console.log(`[Server] Skipping silent ${channel} segment (rms=${segmentRms.toFixed(4)})`)
+    console.log(
+      `[Server] Skipping silent ${channel} segment (rms=${segmentRms.toFixed(4)})`,
+    )
     return
   }
 
@@ -77,7 +88,11 @@ async function transcribeSegment(session: Session, pcm: Float32Array, channel: C
   send(session.ws, { type: 'status', state: 'processing' })
 
   try {
-    const text = await transcribe(denoised, session.sampleRate, session.sourceLang)
+    const text = await transcribe(
+      denoised,
+      session.sampleRate,
+      session.sourceLang,
+    )
     if (text) {
       send(session.ws, { type: 'transcript', channel, text, final: true })
     }
