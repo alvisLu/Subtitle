@@ -23,6 +23,8 @@ type Recording = {
   timestamp: Date
 }
 
+type TextEntry = { id: number; text: string; translation?: string; timestamp: Date }
+
 const LANGUAGES = [
   { code: 'zh', label: '中文' },
   { code: 'en', label: 'English' },
@@ -37,14 +39,12 @@ type Mode = 'transcript' | 'translate'
 export default function App() {
   const [recording, setRecording] = useState(false)
   const [volume, setVolume] = useState(0)
-  const [micTranscript, setMicTranscript] = useState('')
-  const [micTranscriptInterim, setMicTranscriptInterim] = useState(false)
-  const [micTranslation, setMicTranslation] = useState('')
-  const [micTranslationInterim, setMicTranslationInterim] = useState(false)
-  const [sysTranscript, setSysTranscript] = useState('')
-  const [sysTranscriptInterim, setSysTranscriptInterim] = useState(false)
-  const [sysTranslation, setSysTranslation] = useState('')
-  const [sysTranslationInterim, setSysTranslationInterim] = useState(false)
+  const [micTranscripts, setMicTranscripts] = useState<TextEntry[]>([])
+  const [micTranscriptInterim, setMicTranscriptInterim] = useState('')
+  const [micTranslationInterim, setMicTranslationInterim] = useState('')
+  const [sysTranscripts, setSysTranscripts] = useState<TextEntry[]>([])
+  const [sysTranscriptInterim, setSysTranscriptInterim] = useState('')
+  const [sysTranslationInterim, setSysTranslationInterim] = useState('')
   const [mode, setMode] = useState<Mode>('transcript')
   const [sourceLang, setSourceLang] = useState('zh')
   const [recordings, setRecordings] = useState<Recording[]>([])
@@ -71,6 +71,8 @@ export default function App() {
   const nextIdRef = useRef(0)
   const nextSysIdRef = useRef(0)
   const nextDenoisedIdRef = useRef(0)
+  const nextMicTranscriptIdRef = useRef(0)
+  const nextSysTranscriptIdRef = useRef(0)
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null)
   const sysSourceNodeRef = useRef<AudioBufferSourceNode | null>(null)
   const denoisedSourceNodeRef = useRef<AudioBufferSourceNode | null>(null)
@@ -105,16 +107,36 @@ export default function App() {
     if (!window.electron) return
     window.electron.onTranscript(({ channel, text, final }) => {
       if (channel === 'loopback') {
-        setSysTranscript(text); setSysTranscriptInterim(!final)
+        if (final) {
+          setSysTranscripts(prev => [{ id: nextSysTranscriptIdRef.current++, text, timestamp: new Date() }, ...prev])
+          setSysTranscriptInterim('')
+        } else {
+          setSysTranscriptInterim(text)
+        }
       } else {
-        setMicTranscript(text); setMicTranscriptInterim(!final)
+        if (final) {
+          setMicTranscripts(prev => [{ id: nextMicTranscriptIdRef.current++, text, timestamp: new Date() }, ...prev])
+          setMicTranscriptInterim('')
+        } else {
+          setMicTranscriptInterim(text)
+        }
       }
     })
     window.electron.onTranslation(({ channel, text, final }) => {
       if (channel === 'loopback') {
-        setSysTranslation(text); setSysTranslationInterim(!final)
+        if (final) {
+          setSysTranscripts(prev => prev.length === 0 ? prev : [{ ...prev[0], translation: text }, ...prev.slice(1)])
+          setSysTranslationInterim('')
+        } else {
+          setSysTranslationInterim(text)
+        }
       } else {
-        setMicTranslation(text); setMicTranslationInterim(!final)
+        if (final) {
+          setMicTranscripts(prev => prev.length === 0 ? prev : [{ ...prev[0], translation: text }, ...prev.slice(1)])
+          setMicTranslationInterim('')
+        } else {
+          setMicTranslationInterim(text)
+        }
       }
     })
     window.electron.onSttConfig((config) => {
@@ -423,8 +445,8 @@ export default function App() {
               <button
                 key={m}
                 className={`flex-1 py-1.5 text-sm font-medium transition-colors ${mode === m
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-background text-muted-foreground hover:bg-muted'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-background text-muted-foreground hover:bg-muted'
                   }`}
                 disabled={recording}
                 onClick={() => {
@@ -531,61 +553,71 @@ export default function App() {
             )}
           </Button>
 
-          {/* Mic text output */}
-          {mode === 'transcript' && micTranscript && (
-            <div className={`rounded-md bg-muted p-3 text-sm break-words ${micTranscriptInterim ? 'italic opacity-60' : 'text-muted-foreground'}`}>
-              <div className="text-xs font-medium text-foreground mb-1 flex items-center gap-1">
-                <Mic className="h-3 w-3" /> 麥克風
+          {/* Mic transcript list */}
+          {(micTranscripts.length > 0 || micTranscriptInterim) && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                  <Mic className="h-3 w-3" /> 麥克風 ({micTranscripts.length})
+                </span>
+                <Button variant="ghost" size="icon" className="h-6 w-6"
+                  onClick={() => { setMicTranscripts([]); setMicTranscriptInterim(''); setMicTranslationInterim('') }}>
+                  <Trash2 className="h-3 w-3" />
+                </Button>
               </div>
-              {micTranscript}
-              {micTranscriptInterim && <span className="animate-pulse"> ···</span>}
-            </div>
-          )}
-          {mode === 'translate' && micTranscript && (
-            <div className={`rounded-md bg-muted p-3 text-sm break-words ${micTranscriptInterim ? 'italic opacity-60' : 'text-muted-foreground'}`}>
-              <div className="text-xs font-medium text-foreground mb-1 flex items-center gap-1">
-                <Mic className="h-3 w-3" /> 麥克風原文
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {(micTranscriptInterim || micTranslationInterim) && (
+                  <div className="rounded-md bg-muted p-3 text-sm break-words italic opacity-60">
+                    <div>{micTranscriptInterim}<span className="animate-pulse"> ···</span></div>
+                    {mode === 'translate' && micTranslationInterim && (
+                      <div className="mt-1 pt-1 border-t border-border/40">{micTranslationInterim}<span className="animate-pulse"> ···</span></div>
+                    )}
+                  </div>
+                )}
+                {micTranscripts.map(entry => (
+                  <div key={entry.id} className="rounded-md bg-muted p-3 text-sm break-words text-muted-foreground">
+                    <div className="text-xs opacity-50 mb-1">{entry.timestamp.toLocaleTimeString()}</div>
+                    <div>{entry.text}</div>
+                    {mode === 'translate' && entry.translation && (
+                      <div className="mt-1 pt-1 border-t border-border/40">{entry.translation}</div>
+                    )}
+                  </div>
+                ))}
               </div>
-              {micTranscript}
-              {micTranscriptInterim && <span className="animate-pulse"> ···</span>}
-            </div>
-          )}
-          {mode === 'translate' && micTranslation && (
-            <div className={`rounded-md bg-muted p-3 text-sm break-words ${micTranslationInterim ? 'italic opacity-60' : 'text-muted-foreground'}`}>
-              <div className="text-xs font-medium text-foreground mb-1 flex items-center gap-1">
-                <Mic className="h-3 w-3" /> 麥克風翻譯
-              </div>
-              {micTranslation}
-              {micTranslationInterim && <span className="animate-pulse"> ···</span>}
             </div>
           )}
 
-          {/* System audio text output */}
-          {mode === 'transcript' && sysTranscript && (
-            <div className={`rounded-md bg-blue-50 dark:bg-blue-950 p-3 text-sm break-words ${sysTranscriptInterim ? 'italic opacity-60' : 'text-muted-foreground'}`}>
-              <div className="text-xs font-medium text-foreground mb-1 flex items-center gap-1">
-                <Monitor className="h-3 w-3" /> 系統音訊
+          {/* System transcript list */}
+          {(sysTranscripts.length > 0 || sysTranscriptInterim) && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                  <Monitor className="h-3 w-3" /> 系統音訊 ({sysTranscripts.length})
+                </span>
+                <Button variant="ghost" size="icon" className="h-6 w-6"
+                  onClick={() => { setSysTranscripts([]); setSysTranscriptInterim(''); setSysTranslationInterim('') }}>
+                  <Trash2 className="h-3 w-3" />
+                </Button>
               </div>
-              {sysTranscript}
-              {sysTranscriptInterim && <span className="animate-pulse"> ···</span>}
-            </div>
-          )}
-          {mode === 'translate' && sysTranscript && (
-            <div className={`rounded-md bg-blue-50 dark:bg-blue-950 p-3 text-sm break-words ${sysTranscriptInterim ? 'italic opacity-60' : 'text-muted-foreground'}`}>
-              <div className="text-xs font-medium text-foreground mb-1 flex items-center gap-1">
-                <Monitor className="h-3 w-3" /> 系統音訊原文
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {(sysTranscriptInterim || sysTranslationInterim) && (
+                  <div className="rounded-md bg-blue-50 dark:bg-blue-950 p-3 text-sm break-words italic opacity-60">
+                    <div>{sysTranscriptInterim}<span className="animate-pulse"> ···</span></div>
+                    {mode === 'translate' && sysTranslationInterim && (
+                      <div className="mt-1 pt-1 border-t border-border/40">{sysTranslationInterim}<span className="animate-pulse"> ···</span></div>
+                    )}
+                  </div>
+                )}
+                {sysTranscripts.map(entry => (
+                  <div key={entry.id} className="rounded-md bg-blue-50 dark:bg-blue-950 p-3 text-sm break-words text-muted-foreground">
+                    <div className="text-xs opacity-50 mb-1">{entry.timestamp.toLocaleTimeString()}</div>
+                    <div>{entry.text}</div>
+                    {mode === 'translate' && entry.translation && (
+                      <div className="mt-1 pt-1 border-t border-border/40">{entry.translation}</div>
+                    )}
+                  </div>
+                ))}
               </div>
-              {sysTranscript}
-              {sysTranscriptInterim && <span className="animate-pulse"> ···</span>}
-            </div>
-          )}
-          {mode === 'translate' && sysTranslation && (
-            <div className={`rounded-md bg-blue-50 dark:bg-blue-950 p-3 text-sm break-words ${sysTranslationInterim ? 'italic opacity-60' : 'text-muted-foreground'}`}>
-              <div className="text-xs font-medium text-foreground mb-1 flex items-center gap-1">
-                <Monitor className="h-3 w-3" /> 系統音訊翻譯
-              </div>
-              {sysTranslation}
-              {sysTranslationInterim && <span className="animate-pulse"> ···</span>}
             </div>
           )}
 
