@@ -19,6 +19,7 @@ interface ElectronAPI {
   onTranslation(
     cb: (data: { channel: string; text: string; final: boolean }) => void,
   ): void
+  getDesktopCapturerSources(): Promise<{ id: string; name: string }[]>
   removeAllListeners(channel: string): void
 }
 

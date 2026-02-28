@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, desktopCapturer } from 'electron'
 import { join } from 'path'
 import WebSocket from 'ws'
 
@@ -148,6 +148,15 @@ ipcMain.on('session:setMode', (_e, mode: string) => {
   if (ws?.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'setMode', mode }))
   }
+})
+
+// IPC: list screen sources for ScreenCaptureKit system audio
+ipcMain.handle('desktop-capturer:getSources', async () => {
+  const sources = await desktopCapturer.getSources({
+    types: ['screen'],
+    thumbnailSize: { width: 0, height: 0 },
+  })
+  return sources.map((s) => ({ id: s.id, name: s.name }))
 })
 
 // IPC: audio chunks from Renderer → prepend [isFinal][channel] → forward to sidecar

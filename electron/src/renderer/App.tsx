@@ -3,7 +3,7 @@ import { MicVAD } from '@ricky0123/vad-web'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Mic, MicOff, Play, Square, Trash2 } from 'lucide-react'
+import { Mic, MicOff, Monitor, MonitorOff, Play, Square, Trash2 } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -49,10 +49,16 @@ export default function App() {
   )
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('')
+  const [systemCapture, setSystemCapture] = useState(false)
+  const [sysVolume, setSysVolume] = useState(0)
 
   const vadRef = useRef<MicVAD | null>(null)
   const streamingFramesRef = useRef<Float32Array[]>([])
   const isSpeakingRef = useRef(false)
+  const sysVadRef = useRef<MicVAD | null>(null)
+  const sysStreamRef = useRef<MediaStream | null>(null)
+  const sysStreamingFramesRef = useRef<Float32Array[]>([])
+  const isSysSpeakingRef = useRef(false)
   const nextIdRef = useRef(0)
   const nextDenoisedIdRef = useRef(0)
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null)
@@ -264,6 +270,86 @@ export default function App() {
     window.electron?.stopSession()
   }, [])
 
+  const startSysAudio = useCallback(async () => {
+    const sources = await window.electron.getDesktopCapturerSources()
+    const screen = sources[0]
+    if (!screen) return
+
+    const sysVad = await MicVAD.new({
+      baseAssetPath: '/',
+      onnxWASMBasePath: '/',
+      model: 'v5',
+      getStream: async () => {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: screen.id },
+          } as unknown as MediaTrackConstraints,
+          video: {
+            mandatory: { chromeMediaSource: 'desktop' },
+          } as unknown as MediaTrackConstraints,
+        })
+        // Stop video tracks — only audio is needed
+        stream.getVideoTracks().forEach((t) => t.stop())
+        sysStreamRef.current = stream
+        return stream
+      },
+      onSpeechStart: () => {
+        isSysSpeakingRef.current = true
+        sysStreamingFramesRef.current = []
+        setSysVolume(1)
+      },
+      onSpeechEnd: (audio: Float32Array) => {
+        isSysSpeakingRef.current = false
+        if (sysStreamingFramesRef.current.length > 0) {
+          const merged = mergeFrames(sysStreamingFramesRef.current)
+          sysStreamingFramesRef.current = []
+          window.electron?.sendAudio(merged.buffer as ArrayBuffer, 1, false)
+        }
+        window.electron?.sendAudio(audio.buffer as ArrayBuffer, 1, true)
+        setSysVolume(0)
+      },
+      onVADMisfire: () => {
+        isSysSpeakingRef.current = false
+        sysStreamingFramesRef.current = []
+        setSysVolume(0)
+      },
+      onFrameProcessed: (prob, frame) => {
+        if (!sysVadRef.current?.listening) return
+        setSysVolume(prob.isSpeech)
+        if (!isSysSpeakingRef.current) return
+        sysStreamingFramesRef.current.push(new Float32Array(frame))
+        if (sysStreamingFramesRef.current.length >= 16) {
+          const chunks = sysStreamingFramesRef.current.splice(0, 16)
+          window.electron?.sendAudio(mergeFrames(chunks).buffer as ArrayBuffer, 1, false)
+        }
+      },
+    })
+
+    await sysVad.start()
+    sysVadRef.current = sysVad
+    setSystemCapture(true)
+
+    // Ensure sidecar session is running
+    window.electron?.startSession({
+      sourceLang,
+      targetLang: 'en',
+      engine: 'deepl',
+      sampleRate: 16000,
+      mode,
+    })
+  }, [sourceLang, mode])
+
+  const stopSysAudio = useCallback(async () => {
+    await sysVadRef.current?.destroy()
+    sysVadRef.current = null
+    sysStreamRef.current?.getTracks().forEach((t) => t.stop())
+    sysStreamRef.current = null
+    sysStreamingFramesRef.current = []
+    isSysSpeakingRef.current = false
+    setSystemCapture(false)
+    setSysVolume(0)
+  }, [])
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-8">
       <Card className="w-80">
@@ -360,11 +446,37 @@ export default function App() {
           >
             {recording ? (
               <>
-                <MicOff className="mr-2 h-4 w-4" /> Stop
+                <MicOff className="mr-2 h-4 w-4" /> Stop Mic
               </>
             ) : (
               <>
                 <Mic className="mr-2 h-4 w-4" /> Start Mic
+              </>
+            )}
+          </Button>
+
+          {/* System audio volume bar */}
+          {systemCapture && (
+            <div className="h-2 w-full rounded-full bg-secondary overflow-hidden">
+              <div
+                className="h-full rounded-full transition-[width] duration-75 bg-blue-500"
+                style={{ width: `${sysVolume * 100}%` }}
+              />
+            </div>
+          )}
+
+          <Button
+            className="w-full"
+            variant={systemCapture ? 'destructive' : 'outline'}
+            onClick={systemCapture ? stopSysAudio : startSysAudio}
+          >
+            {systemCapture ? (
+              <>
+                <MonitorOff className="mr-2 h-4 w-4" /> Stop System Audio
+              </>
+            ) : (
+              <>
+                <Monitor className="mr-2 h-4 w-4" /> Start System Audio
               </>
             )}
           </Button>

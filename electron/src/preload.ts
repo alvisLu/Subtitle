@@ -36,6 +36,9 @@ contextBridge.exposeInMainWorld('electron', {
     cb: (data: { channel: string; text: string; final: boolean }) => void,
   ) => ipcRenderer.on('translation', (_e, data) => cb(data)),
 
+  getDesktopCapturerSources: () =>
+    ipcRenderer.invoke('desktop-capturer:getSources'),
+
   removeAllListeners: (channel: string) =>
     ipcRenderer.removeAllListeners(channel),
 })
