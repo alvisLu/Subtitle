@@ -2,8 +2,9 @@ import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { MicVAD } from '@ricky0123/vad-web'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { MicOff, Monitor, MonitorOff, Mic } from 'lucide-react'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import { MicOff, Monitor, Mic, Clock } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -13,6 +14,8 @@ import {
 } from '@/components/ui/select'
 import { MicSegmentList } from './MicSegmentList'
 import type { MicSegment } from './MicSegmentList'
+import { Progress } from './components/ui/progress'
+import { Separator } from './components/ui/separator'
 
 const SAMPLE_RATE = 16000
 // Silero v5: 512 samples/frame @ 16kHz = 32ms; 16 frames = 512ms ≈ 0.5s
@@ -63,13 +66,17 @@ function playAudio(
 export default function App() {
   const [recording, setRecording] = useState(false)
   const [volume, setVolume] = useState(0)
+  const [elapsed, setElapsed] = useState(0)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Mic: unified segments (transcript + denoised + raw recording per utterance)
   const [micSegments, setMicSegments] = useState<MicSegment[]>([])
   const [micTranscriptInterim, setMicTranscriptInterim] = useState('')
   const [micTranslationInterim, setMicTranslationInterim] = useState('')
   const [playingRawSegId, setPlayingRawSegId] = useState<number | null>(null)
-  const [playingDenoisedSegId, setPlayingDenoisedSegId] = useState<number | null>(null)
+  const [playingDenoisedSegId, setPlayingDenoisedSegId] = useState<
+    number | null
+  >(null)
 
   // System audio
   const [sysSegments, setSysSegments] = useState<MicSegment[]>([])
@@ -128,7 +135,10 @@ export default function App() {
     navigator.mediaDevices.addEventListener('devicechange', refreshAudioDevices)
     return () => {
       cancelled = true
-      navigator.mediaDevices.removeEventListener('devicechange', refreshAudioDevices)
+      navigator.mediaDevices.removeEventListener(
+        'devicechange',
+        refreshAudioDevices,
+      )
     }
   }, [])
 
@@ -138,9 +148,11 @@ export default function App() {
       if (channel === 'loopback') {
         if (final) {
           const segId = nextSysTranscriptIdRef.current++
-          setSysSegments(prev => prev.map(s =>
-            s.id === segId ? { ...s, text, timestamp: new Date() } : s
-          ))
+          setSysSegments((prev) =>
+            prev.map((s) =>
+              s.id === segId ? { ...s, text, timestamp: new Date() } : s,
+            ),
+          )
           setSysTranscriptInterim('')
         } else {
           setSysTranscriptInterim(text)
@@ -148,9 +160,11 @@ export default function App() {
       } else {
         if (final) {
           const segId = nextMicTranscriptIdRef.current++
-          setMicSegments(prev => prev.map(s =>
-            s.id === segId ? { ...s, text, timestamp: new Date() } : s
-          ))
+          setMicSegments((prev) =>
+            prev.map((s) =>
+              s.id === segId ? { ...s, text, timestamp: new Date() } : s,
+            ),
+          )
           setMicTranscriptInterim('')
         } else {
           setMicTranscriptInterim(text)
@@ -162,18 +176,18 @@ export default function App() {
         if (final) {
           setSysTranslationInterim('')
           const segId = nextSysTranslationIdRef.current++
-          setSysSegments(prev => prev.map(s =>
-            s.id === segId ? { ...s, translation: text } : s
-          ))
+          setSysSegments((prev) =>
+            prev.map((s) => (s.id === segId ? { ...s, translation: text } : s)),
+          )
         } else {
           setSysTranslationInterim(text)
         }
       } else {
         if (final) {
           const segId = nextMicTranslationIdRef.current++
-          setMicSegments(prev => prev.map(s =>
-            s.id === segId ? { ...s, translation: text } : s
-          ))
+          setMicSegments((prev) =>
+            prev.map((s) => (s.id === segId ? { ...s, translation: text } : s)),
+          )
           setMicTranslationInterim('')
         } else {
           setMicTranslationInterim(text)
@@ -187,18 +201,34 @@ export default function App() {
       const audio = new Float32Array(buffer)
       if (channel === 'loopback') {
         const segId = nextSysDenoisedIdRef.current++
-        setSysSegments(prev => prev.map(s =>
-          s.id === segId
-            ? { ...s, denoisedAudio: { audio, duration: audio.length / SAMPLE_RATE } }
-            : s
-        ))
+        setSysSegments((prev) =>
+          prev.map((s) =>
+            s.id === segId
+              ? {
+                  ...s,
+                  denoisedAudio: {
+                    audio,
+                    duration: audio.length / SAMPLE_RATE,
+                  },
+                }
+              : s,
+          ),
+        )
       } else {
         const segId = nextMicDenoisedIdRef.current++
-        setMicSegments(prev => prev.map(s =>
-          s.id === segId
-            ? { ...s, denoisedAudio: { audio, duration: audio.length / SAMPLE_RATE } }
-            : s
-        ))
+        setMicSegments((prev) =>
+          prev.map((s) =>
+            s.id === segId
+              ? {
+                  ...s,
+                  denoisedAudio: {
+                    audio,
+                    duration: audio.length / SAMPLE_RATE,
+                  },
+                }
+              : s,
+          ),
+        )
       }
     })
     return () => {
@@ -221,19 +251,42 @@ export default function App() {
     setPlayingDenoisedSegId(null)
   }, [])
 
-  const playRawAudio = useCallback((segId: number, audio: Float32Array) => {
-    playAudio(audio, audioCtxRef, sourceNodeRef, segId, setPlayingRawSegId, stopRawPlayback)
-  }, [stopRawPlayback])
+  const playRawAudio = useCallback(
+    (segId: number, audio: Float32Array) => {
+      playAudio(
+        audio,
+        audioCtxRef,
+        sourceNodeRef,
+        segId,
+        setPlayingRawSegId,
+        stopRawPlayback,
+      )
+    },
+    [stopRawPlayback],
+  )
 
-  const playDenoisedAudio = useCallback((segId: number, audio: Float32Array) => {
-    playAudio(audio, audioCtxRef, denoisedSourceNodeRef, segId, setPlayingDenoisedSegId, stopDenoisedPlayback)
-  }, [stopDenoisedPlayback])
+  const playDenoisedAudio = useCallback(
+    (segId: number, audio: Float32Array) => {
+      playAudio(
+        audio,
+        audioCtxRef,
+        denoisedSourceNodeRef,
+        segId,
+        setPlayingDenoisedSegId,
+        stopDenoisedPlayback,
+      )
+    },
+    [stopDenoisedPlayback],
+  )
 
   function mergeFrames(frames: Float32Array[]): Float32Array {
     const total = frames.reduce((s, f) => s + f.length, 0)
     const out = new Float32Array(total)
     let offset = 0
-    for (const f of frames) { out.set(f, offset); offset += f.length }
+    for (const f of frames) {
+      out.set(f, offset)
+      offset += f.length
+    }
     return out
   }
 
@@ -263,12 +316,18 @@ export default function App() {
         window.electron?.sendAudio(audio.buffer as ArrayBuffer, 0, true)
         setVolume(0)
         const segId = nextMicSegIdRef.current++
-        setMicSegments(prev => [{
-          id: segId,
-          channel: 'mic',
-          timestamp: new Date(),
-          micAudio: { audio: audio.slice(), duration: audio.length / SAMPLE_RATE },
-        }, ...prev])
+        setMicSegments((prev) => [
+          {
+            id: segId,
+            channel: 'mic',
+            timestamp: new Date(),
+            micAudio: {
+              audio: audio.slice(),
+              duration: audio.length / SAMPLE_RATE,
+            },
+          },
+          ...prev,
+        ])
       },
       onVADMisfire: () => {
         isSpeakingRef.current = false
@@ -282,7 +341,11 @@ export default function App() {
         streamingFramesRef.current.push(new Float32Array(frame))
         if (streamingFramesRef.current.length >= STREAMING_FRAMES) {
           const chunks = streamingFramesRef.current.splice(0, STREAMING_FRAMES)
-          window.electron?.sendAudio(mergeFrames(chunks).buffer as ArrayBuffer, 0, false)
+          window.electron?.sendAudio(
+            mergeFrames(chunks).buffer as ArrayBuffer,
+            0,
+            false,
+          )
         }
       },
     })
@@ -290,6 +353,8 @@ export default function App() {
     await myvad.start()
     vadRef.current = myvad
     setRecording(true)
+    setElapsed(0)
+    timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000)
 
     window.electron?.startSession({
       sourceLang,
@@ -305,6 +370,10 @@ export default function App() {
     vadRef.current = null
     setRecording(false)
     setVolume(0)
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
     window.electron?.stopSession()
     // Reset mic counters so next session correlates correctly
     nextMicSegIdRef.current = 0
@@ -325,7 +394,10 @@ export default function App() {
       getStream: async () => {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
-            mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: screen.id },
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: screen.id,
+            },
           } as unknown as MediaTrackConstraints,
           video: {
             mandatory: { chromeMediaSource: 'desktop' },
@@ -350,12 +422,18 @@ export default function App() {
         window.electron?.sendAudio(audio.buffer as ArrayBuffer, 1, true)
         setSysVolume(0)
         const segId = nextSysSegIdRef.current++
-        setSysSegments(prev => [{
-          id: segId,
-          channel: 'loopback',
-          timestamp: new Date(),
-          micAudio: { audio: audio.slice(), duration: audio.length / SAMPLE_RATE },
-        }, ...prev])
+        setSysSegments((prev) => [
+          {
+            id: segId,
+            channel: 'loopback',
+            timestamp: new Date(),
+            micAudio: {
+              audio: audio.slice(),
+              duration: audio.length / SAMPLE_RATE,
+            },
+          },
+          ...prev,
+        ])
       },
       onVADMisfire: () => {
         isSysSpeakingRef.current = false
@@ -368,8 +446,15 @@ export default function App() {
         if (!isSysSpeakingRef.current) return
         sysStreamingFramesRef.current.push(new Float32Array(frame))
         if (sysStreamingFramesRef.current.length >= STREAMING_FRAMES) {
-          const chunks = sysStreamingFramesRef.current.splice(0, STREAMING_FRAMES)
-          window.electron?.sendAudio(mergeFrames(chunks).buffer as ArrayBuffer, 1, false)
+          const chunks = sysStreamingFramesRef.current.splice(
+            0,
+            STREAMING_FRAMES,
+          )
+          window.electron?.sendAudio(
+            mergeFrames(chunks).buffer as ArrayBuffer,
+            1,
+            false,
+          )
         }
       },
     })
@@ -404,154 +489,170 @@ export default function App() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-8">
-      <Card className="w-80">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">TranBot — Mic Test</CardTitle>
-            <Badge variant={recording ? 'default' : 'secondary'}>
-              {recording ? 'Recording' : 'Idle'}
-            </Badge>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            VAD: Silero v5 @ 16kHz
-          </p>
-        </CardHeader>
+    <div className="h-screen bg-background flex flex-col">
+      <div className="w-[100%] h-[10%] flex items-center justify-between p-6 border-b border-border">
+        <div className="flex items-center justify-between gap-8">
+          <h1 className="text-3xl font-semibold">TranBot</h1>
 
-        <CardContent className="space-y-4">
-          {/* Mode selector */}
-          <div className="flex rounded-md overflow-hidden border border-border">
-            {(['transcript', 'translate'] as Mode[]).map((m) => (
-              <button
-                key={m}
-                className={`flex-1 py-1.5 text-sm font-medium transition-colors ${mode === m
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-background text-muted-foreground hover:bg-muted'
-                  }`}
-                disabled={recording}
-                onClick={() => {
-                  setMode(m)
-                  if (recording) window.electron?.setMode(m)
-                }}
-              >
-                {m === 'transcript' ? 'Transcript' : 'Translation'}
-              </button>
-            ))}
-          </div>
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between select-none gap-4">
+                <div className="flex flex-row items-center gap-2 w-50">
+                  <Checkbox
+                    checked={systemCapture}
+                    onCheckedChange={(checked) =>
+                      checked ? startSysAudio() : stopSysAudio()
+                    }
+                  />
+                  <Monitor className="w-4 text-muted-foreground" />
+                  <span className="text-m">System Audio</span>
+                </div>
 
-          {/* Language selector */}
-          <Select
-            value={sourceLang}
-            onValueChange={(val) => {
-              setSourceLang(val)
-              if (recording) window.electron?.setLang(val)
-            }}
-            disabled={recording}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {LANGUAGES.map((lang) => (
-                <SelectItem key={lang.code} value={lang.code}>
-                  {lang.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Device selector */}
-          <Select
-            value={selectedDeviceId}
-            onValueChange={setSelectedDeviceId}
-            disabled={recording}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select microphone" />
-            </SelectTrigger>
-            <SelectContent>
-              {audioDevices.map((device) => (
-                <SelectItem key={device.deviceId} value={device.deviceId}>
-                  {device.label || `Microphone ${device.deviceId.slice(0, 8)}`}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Mic volume bar */}
-          <div className="h-3 w-full rounded-full bg-secondary overflow-hidden">
-            <div
-              className="h-full rounded-full transition-[width] duration-75"
-              style={{
-                width: `${volume * 100}%`,
-                backgroundColor: recording
-                  ? 'var(--color-primary)'
-                  : 'var(--color-muted-foreground)',
-              }}
-            />
-          </div>
-
-          <Button
-            className="w-full"
-            variant={recording ? 'destructive' : 'default'}
-            onClick={recording ? stopMicAudio : startMicAudio}
-          >
-            {recording ? (
-              <><MicOff className="mr-2 h-4 w-4" /> Stop Mic</>
-            ) : (
-              <><Mic className="mr-2 h-4 w-4" /> Start Mic</>
-            )}
-          </Button>
-
-          {/* System audio volume bar */}
-          {systemCapture && (
-            <div className="h-2 w-full rounded-full bg-secondary overflow-hidden">
-              <div
-                className="h-full rounded-full transition-[width] duration-75 bg-blue-500"
-                style={{ width: `${sysVolume * 100}%` }}
-              />
+                <div className="w-40">
+                  {systemCapture && <Progress value={sysVolume * 100} />}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground ml-6">
+                若要即時翻譯會議其他人發言，請選擇。
+              </p>
             </div>
+
+            <div className="flex flex-row items-center justify-between gap-4">
+              <div className="w-50">
+                <Select
+                  value={selectedDeviceId}
+                  onValueChange={setSelectedDeviceId}
+                  disabled={recording}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select microphone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {audioDevices.map((device) => (
+                      <SelectItem key={device.deviceId} value={device.deviceId}>
+                        {device.label ||
+                          `Microphone ${device.deviceId.slice(0, 8)}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-40">
+                <Progress value={volume * 100} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <Button
+          className="w-50"
+          variant={recording ? 'destructive' : 'default'}
+          onClick={recording ? stopMicAudio : startMicAudio}
+        >
+          {recording ? (
+            <>
+              <MicOff className="mr-2 h-4 w-4" /> Stop Mic
+            </>
+          ) : (
+            <>
+              <Mic className="mr-2 h-4 w-4" /> Start Mic
+            </>
           )}
+        </Button>
 
-          <Button
-            className="w-full"
-            variant={systemCapture ? 'destructive' : 'outline'}
-            onClick={systemCapture ? stopSysAudio : startSysAudio}
-          >
-            {systemCapture ? (
-              <><MonitorOff className="mr-2 h-4 w-4" /> Stop System Audio</>
-            ) : (
-              <><Monitor className="mr-2 h-4 w-4" /> Start System Audio</>
-            )}
-          </Button>
+        <p className="flex items-center text-2xl text-muted-foreground">
+          <Clock className="mr-2 h-6 w-6" />{' '}
+          {String(Math.floor(elapsed / 3600)).padStart(2, '0')}:
+          {String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0')}:
+          {String(elapsed % 60).padStart(2, '0')}
+        </p>
 
-          {/* Unified segment list: mic + system audio interleaved by time */}
-          <MicSegmentList
-            segments={[...micSegments, ...sysSegments].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())}
-            micInterim={micTranscriptInterim}
-            micTranslationInterim={micTranslationInterim}
-            sysInterim={sysTranscriptInterim}
-            sysTranslationInterim={sysTranslationInterim}
-            mode={mode}
-            playingRawSegId={playingRawSegId}
-            playingDenoisedSegId={playingDenoisedSegId}
-            onClear={() => {
-              stopRawPlayback()
-              stopDenoisedPlayback()
-              setMicSegments([])
-              setSysSegments([])
-              setMicTranscriptInterim('')
-              setMicTranslationInterim('')
-              setSysTranscriptInterim('')
-              setSysTranslationInterim('')
-            }}
-            onPlayRaw={playRawAudio}
-            onStopRaw={stopRawPlayback}
-            onPlayDenoised={playDenoisedAudio}
-            onStopDenoised={stopDenoisedPlayback}
-          />
-        </CardContent>
-      </Card>
+        {/* 
+        <Badge variant={recording ? 'default' : 'secondary'}>
+          {recording ? 'Recording' : 'Idle'}
+        </Badge> */}
+      </div>
+
+      <div className="h-[85%] flex items-start justify-center p-8 overflow-y-auto">
+        <Card className="w-full h-full flex flex-col">
+          <CardHeader className="">
+            <div className="flex flex-row justify-start items-center gap-2">
+              {/* Mode selector */}
+              <div className="flex rounded-md overflow-hidden border border-border w-50">
+                {(['transcript', 'translate'] as Mode[]).map((m) => (
+                  <button
+                    key={m}
+                    className={`flex-1 py-1.5 text-sm font-medium transition-colors ${
+                      mode === m
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-background text-muted-foreground hover:bg-muted'
+                    }`}
+                    disabled={recording}
+                    onClick={() => {
+                      setMode(m)
+                      if (recording) window.electron?.setMode(m)
+                    }}
+                  >
+                    {m === 'transcript' ? 'Transcript' : 'Translation'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Language selector */}
+              {
+                <Select
+                  value={sourceLang}
+                  onValueChange={(val) => {
+                    setSourceLang(val)
+                    if (recording) window.electron?.setLang(val)
+                  }}
+                  disabled={recording}
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LANGUAGES.map((lang) => (
+                      <SelectItem key={lang.code} value={lang.code}>
+                        {lang.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              }
+            </div>
+          </CardHeader>
+          <Separator />
+          <CardContent className="flex-1 overflow-y-auto space-y-4">
+            <MicSegmentList
+              segments={[...micSegments, ...sysSegments].sort(
+                (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),
+              )}
+              micInterim={micTranscriptInterim}
+              micTranslationInterim={micTranslationInterim}
+              sysInterim={sysTranscriptInterim}
+              sysTranslationInterim={sysTranslationInterim}
+              mode={mode}
+              playingRawSegId={playingRawSegId}
+              playingDenoisedSegId={playingDenoisedSegId}
+              onClear={() => {
+                stopRawPlayback()
+                stopDenoisedPlayback()
+                setMicSegments([])
+                setSysSegments([])
+                setMicTranscriptInterim('')
+                setMicTranslationInterim('')
+                setSysTranscriptInterim('')
+                setSysTranslationInterim('')
+              }}
+              onPlayRaw={playRawAudio}
+              onStopRaw={stopRawPlayback}
+              onPlayDenoised={playDenoisedAudio}
+              onStopDenoised={stopDenoisedPlayback}
+            />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
