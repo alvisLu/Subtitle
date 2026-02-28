@@ -1,12 +1,13 @@
-import React from 'react'
 import { Button } from '@/components/ui/button'
-import { Mic, Play, Square, Trash2 } from 'lucide-react'
+import { Mic, Monitor, Play, Square, Trash2 } from 'lucide-react'
 
 export type AudioClip = { audio: Float32Array; duration: number }
+export type Channel = 'mic' | 'loopback'
 
 export type MicSegment = {
   id: number
   timestamp: Date
+  channel: Channel
   text?: string
   translation?: string
   micAudio?: AudioClip
@@ -46,7 +47,7 @@ export function MicSegmentList({
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-          <Mic className="h-3 w-3" /> 麥克風 ({segments.length})
+          Auto list ({segments.length})
         </span>
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClear}>
           <Trash2 className="h-3 w-3" />
@@ -55,6 +56,7 @@ export function MicSegmentList({
       <div className="space-y-1 max-h-60 overflow-y-auto">
         {(interim || translationInterim) && (
           <div className="rounded-md bg-muted p-3 text-sm break-words italic opacity-60">
+            {/* <div className="rounded-md bg-blue-50 dark:bg-blue-950 p-3 text-sm break-words italic opacity-60"> */}
             <div>{interim}<span className="animate-pulse"> ···</span></div>
             {mode === 'translate' && translationInterim && (
               <div className="mt-1 pt-1 border-t border-border/40">
@@ -65,7 +67,14 @@ export function MicSegmentList({
         )}
         {segments.filter(seg => seg.text).map(seg => (
           <div key={seg.id} className="rounded-md bg-muted p-3 text-sm break-words text-muted-foreground">
-            <div className="text-xs opacity-50 mb-1">{seg.timestamp.toLocaleTimeString()}</div>
+            {/* <div key={seg.id} className="rounded-md bg-blue-50 dark:bg-blue-950 p-3 text-sm break-words text-muted-foreground"> */}
+            <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+              {
+                seg.channel === 'mic' ? < Mic className="h-3 w-3" /> :
+                  <Monitor className="h-3 w-3" />
+              }
+            </span>
+            < div className="text-xs opacity-50 mb-1">{seg.timestamp.toLocaleTimeString()}</div>
             {seg.text && <div>{seg.text}</div>}
             {mode === 'translate' && seg.translation && (
               <div className="mt-1 pt-1 border-t border-border/40">{seg.translation}</div>
@@ -101,7 +110,7 @@ export function MicSegmentList({
                       ? <Square className="h-2.5 w-2.5" />
                       : <Play className="h-2.5 w-2.5" />
                     }
-                    Mic {seg.micAudio.duration.toFixed(1)}s
+                    Raw {seg.micAudio.duration.toFixed(1)}s
                   </button>
                 )}
               </div>
@@ -109,6 +118,6 @@ export function MicSegmentList({
           </div>
         ))}
       </div>
-    </div>
+    </div >
   )
 }

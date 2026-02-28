@@ -3,7 +3,7 @@ import { MicVAD } from '@ricky0123/vad-web'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { MicOff, Monitor, MonitorOff, Play, Square, Mic, Trash2 } from 'lucide-react'
+import { MicOff, Monitor, MonitorOff, Mic } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -17,15 +17,6 @@ import type { MicSegment } from './MicSegmentList'
 const SAMPLE_RATE = 16000
 // Silero v5: 512 samples/frame @ 16kHz = 32ms; 16 frames = 512ms ≈ 0.5s
 const STREAMING_FRAMES = 16
-
-type SysRecording = {
-  id: number
-  audio: Float32Array
-  duration: number
-  timestamp: Date
-}
-
-type TextEntry = { id: number; text: string; translation?: string; timestamp: Date }
 
 const LANGUAGES = [
   { code: 'zh', label: '中文' },
@@ -81,12 +72,10 @@ export default function App() {
   const [playingDenoisedSegId, setPlayingDenoisedSegId] = useState<number | null>(null)
 
   // System audio
-  const [sysSegments, sysMicSegments] = useState<MicSegment[]>([])
-  const [sysTranscripts, setSysTranscripts] = useState<TextEntry[]>([])
+  const [sysSegments, setSysSegments] = useState<MicSegment[]>([])
   const [sysTranscriptInterim, setSysTranscriptInterim] = useState('')
   const [sysTranslationInterim, setSysTranslationInterim] = useState('')
-  const [sysRecordings, setSysRecordings] = useState<SysRecording[]>([])
-  const [playingSysId, setPlayingSysId] = useState<number | null>(null)
+  const [playingSysSegId, setPlayingSysSegId] = useState<number | null>(null)
 
   const [mode, setMode] = useState<Mode>('transcript')
   const [sourceLang, setSourceLang] = useState('zh')
@@ -111,8 +100,6 @@ export default function App() {
   const sysStreamRef = useRef<MediaStream | null>(null)
   const sysStreamingFramesRef = useRef<Float32Array[]>([])
   const isSysSpeakingRef = useRef(false)
-  const nextSysIdRef = useRef(0)
-  const nextSysTranscriptIdRef = useRef(0)
 
   // Audio playback
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null)
@@ -147,7 +134,10 @@ export default function App() {
     window.electron.onTranscript(({ channel, text, final }) => {
       if (channel === 'loopback') {
         if (final) {
-          setSysTranscripts(prev => [{ id: nextSysTranscriptIdRef.current++, text, timestamp: new Date() }, ...prev])
+          const segId = nextTranscriptSegIdRef.current++
+          setSysSegments(prev => prev.map(s =>
+            s.id === segId ? { ...s, text, timestamp: new Date() } : s
+          ))
           setSysTranscriptInterim('')
         } else {
           setSysTranscriptInterim(text)
@@ -167,8 +157,11 @@ export default function App() {
     window.electron.onTranslation(({ channel, text, final }) => {
       if (channel === 'loopback') {
         if (final) {
-          setSysTranscripts(prev => prev.length === 0 ? prev : [{ ...prev[0], translation: text }, ...prev.slice(1)])
           setSysTranslationInterim('')
+          const segId = nextTranslationSegIdRef.current++
+          setSysSegments(prev => prev.map(s =>
+            s.id === segId ? { ...s, translation: text } : s
+          ))
         } else {
           setSysTranslationInterim(text)
         }
@@ -191,6 +184,11 @@ export default function App() {
       const audio = new Float32Array(buffer)
       const segId = nextDenoisedSegIdRef.current++
       setMicSegments(prev => prev.map(s =>
+        s.id === segId
+          ? { ...s, denoisedAudio: { audio, duration: audio.length / SAMPLE_RATE } }
+          : s
+      ))
+      setSysSegments(prev => prev.map(s =>
         s.id === segId
           ? { ...s, denoisedAudio: { audio, duration: audio.length / SAMPLE_RATE } }
           : s
@@ -219,7 +217,7 @@ export default function App() {
   const stopSysPlayback = useCallback(() => {
     sysSourceNodeRef.current?.stop()
     sysSourceNodeRef.current = null
-    setPlayingSysId(null)
+    setPlayingSysSegId(null)
   }, [])
 
   const playMicAudio = useCallback((segId: number, audio: Float32Array) => {
@@ -230,8 +228,8 @@ export default function App() {
     playAudio(audio, audioCtxRef, denoisedSourceNodeRef, segId, setPlayingDenoisedSegId, stopDenoisedPlayback)
   }, [stopDenoisedPlayback])
 
-  const playSysRecording = useCallback((rec: SysRecording) => {
-    playAudio(rec.audio, audioCtxRef, sysSourceNodeRef, rec.id, setPlayingSysId, stopSysPlayback)
+  const playSysAudio = useCallback((segId: number, audio: Float32Array) => {
+    playAudio(audio, audioCtxRef, sourceNodeRef, segId, setPlayingSysSegId, stopSysPlayback)
   }, [stopSysPlayback])
 
   function mergeFrames(frames: Float32Array[]): Float32Array {
@@ -270,6 +268,7 @@ export default function App() {
         const segId = nextMicSegIdRef.current++
         setMicSegments(prev => [{
           id: segId,
+          channel: 'mic',
           timestamp: new Date(),
           micAudio: { audio: audio.slice(), duration: audio.length / SAMPLE_RATE },
         }, ...prev])
@@ -353,11 +352,13 @@ export default function App() {
         }
         window.electron?.sendAudio(audio.buffer as ArrayBuffer, 1, true)
         setSysVolume(0)
-        const id = nextSysIdRef.current++
-        setSysRecordings((prev) => [
-          { id, audio: audio.slice(), duration: audio.length / SAMPLE_RATE, timestamp: new Date() },
-          ...prev,
-        ])
+        const segId = nextMicSegIdRef.current++
+        setSysSegments(prev => [{
+          id: segId,
+          channel: 'loopback',
+          timestamp: new Date(),
+          micAudio: { audio: audio.slice(), duration: audio.length / SAMPLE_RATE },
+        }, ...prev])
       },
       onVADMisfire: () => {
         isSysSpeakingRef.current = false
@@ -543,90 +544,25 @@ export default function App() {
             onStopDenoised={stopDenoisedPlayback}
           />
 
-          {/* System transcript list */}
-          {(sysTranscripts.length > 0 || sysTranscriptInterim) && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                  <Monitor className="h-3 w-3" /> 系統音訊 ({sysTranscripts.length})
-                </span>
-                <Button variant="ghost" size="icon" className="h-6 w-6"
-                  onClick={() => { setSysTranscripts([]); setSysTranscriptInterim(''); setSysTranslationInterim('') }}>
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-              <div className="space-y-1 max-h-40 overflow-y-auto">
-                {(sysTranscriptInterim || sysTranslationInterim) && (
-                  <div className="rounded-md bg-blue-50 dark:bg-blue-950 p-3 text-sm break-words italic opacity-60">
-                    <div>{sysTranscriptInterim}<span className="animate-pulse"> ···</span></div>
-                    {mode === 'translate' && sysTranslationInterim && (
-                      <div className="mt-1 pt-1 border-t border-border/40">{sysTranslationInterim}<span className="animate-pulse"> ···</span></div>
-                    )}
-                  </div>
-                )}
-                {sysTranscripts.map(entry => (
-                  <div key={entry.id} className="rounded-md bg-blue-50 dark:bg-blue-950 p-3 text-sm break-words text-muted-foreground">
-                    <div className="text-xs opacity-50 mb-1">{entry.timestamp.toLocaleTimeString()}</div>
-                    <div>{entry.text}</div>
-                    {mode === 'translate' && entry.translation && (
-                      <div className="mt-1 pt-1 border-t border-border/40">{entry.translation}</div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* System audio recordings */}
-          {sysRecordings.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">
-                  System Audio ({sysRecordings.length})
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  onClick={() => { stopSysPlayback(); setSysRecordings([]) }}
-                  title="Clear all"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-              <div className="space-y-1 max-h-40 overflow-y-auto">
-                {sysRecordings.map((rec) => (
-                  <div
-                    key={rec.id}
-                    className="flex items-center gap-2 rounded-md bg-muted px-2 py-1 text-xs"
-                  >
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 shrink-0"
-                      onClick={() =>
-                        playingSysId === rec.id
-                          ? stopSysPlayback()
-                          : playSysRecording(rec)
-                      }
-                    >
-                      {playingSysId === rec.id ? (
-                        <Square className="h-3 w-3" />
-                      ) : (
-                        <Play className="h-3 w-3" />
-                      )}
-                    </Button>
-                    <span className="flex-1 text-muted-foreground">
-                      {rec.timestamp.toLocaleTimeString()}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {rec.duration.toFixed(1)}s
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <MicSegmentList
+            segments={sysSegments}
+            interim={sysTranscriptInterim}
+            translationInterim={sysTranslationInterim}
+            mode={mode}
+            playingMicSegId={playingSysSegId}
+            playingDenoisedSegId={playingDenoisedSegId}
+            onClear={() => {
+              stopSysPlayback()
+              stopDenoisedPlayback()
+              setSysSegments([])
+              setSysTranscriptInterim('')
+              setSysTranslationInterim('')
+            }}
+            onPlayMic={playSysAudio}
+            onStopMic={stopSysPlayback}
+            onPlayDenoised={playDenoisedAudio}
+            onStopDenoised={stopDenoisedPlayback}
+          />
         </CardContent>
       </Card>
     </div>
