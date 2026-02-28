@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/select'
 
 const SAMPLE_RATE = 16000
+// Silero v5: 512 samples/frame @ 16kHz = 32ms; 16 frames = 512ms ≈ 0.5s
+const STREAMING_FRAMES = 16
 
 type Recording = {
   id: number
@@ -35,10 +37,14 @@ type Mode = 'transcript' | 'translate'
 export default function App() {
   const [recording, setRecording] = useState(false)
   const [volume, setVolume] = useState(0)
-  const [transcript, setTranscript] = useState('')
-  const [transcriptInterim, setTranscriptInterim] = useState(false)
-  const [translation, setTranslation] = useState('')
-  const [translationInterim, setTranslationInterim] = useState(false)
+  const [micTranscript, setMicTranscript] = useState('')
+  const [micTranscriptInterim, setMicTranscriptInterim] = useState(false)
+  const [micTranslation, setMicTranslation] = useState('')
+  const [micTranslationInterim, setMicTranslationInterim] = useState(false)
+  const [sysTranscript, setSysTranscript] = useState('')
+  const [sysTranscriptInterim, setSysTranscriptInterim] = useState(false)
+  const [sysTranslation, setSysTranslation] = useState('')
+  const [sysTranslationInterim, setSysTranslationInterim] = useState(false)
   const [mode, setMode] = useState<Mode>('transcript')
   const [sourceLang, setSourceLang] = useState('zh')
   const [recordings, setRecordings] = useState<Recording[]>([])
@@ -55,13 +61,18 @@ export default function App() {
   const vadRef = useRef<MicVAD | null>(null)
   const streamingFramesRef = useRef<Float32Array[]>([])
   const isSpeakingRef = useRef(false)
+  const [sysRecordings, setSysRecordings] = useState<Recording[]>([])
+  const [playingSysId, setPlayingSysId] = useState<number | null>(null)
+
   const sysVadRef = useRef<MicVAD | null>(null)
   const sysStreamRef = useRef<MediaStream | null>(null)
   const sysStreamingFramesRef = useRef<Float32Array[]>([])
   const isSysSpeakingRef = useRef(false)
   const nextIdRef = useRef(0)
+  const nextSysIdRef = useRef(0)
   const nextDenoisedIdRef = useRef(0)
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null)
+  const sysSourceNodeRef = useRef<AudioBufferSourceNode | null>(null)
   const denoisedSourceNodeRef = useRef<AudioBufferSourceNode | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
 
@@ -92,13 +103,19 @@ export default function App() {
 
   useEffect(() => {
     if (!window.electron) return
-    window.electron.onTranscript(({ text, final }) => {
-      setTranscript(text)
-      setTranscriptInterim(!final)
+    window.electron.onTranscript(({ channel, text, final }) => {
+      if (channel === 'loopback') {
+        setSysTranscript(text); setSysTranscriptInterim(!final)
+      } else {
+        setMicTranscript(text); setMicTranscriptInterim(!final)
+      }
     })
-    window.electron.onTranslation(({ text, final }) => {
-      setTranslation(text)
-      setTranslationInterim(!final)
+    window.electron.onTranslation(({ channel, text, final }) => {
+      if (channel === 'loopback') {
+        setSysTranslation(text); setSysTranslationInterim(!final)
+      } else {
+        setMicTranslation(text); setMicTranslationInterim(!final)
+      }
     })
     window.electron.onSttConfig((config) => {
       console.log('[STT] STT_BASE_CONFIG', config)
@@ -135,6 +152,35 @@ export default function App() {
     denoisedSourceNodeRef.current = null
     setPlayingDenoisedId(null)
   }, [])
+
+  const stopSysPlayback = useCallback(() => {
+    sysSourceNodeRef.current?.stop()
+    sysSourceNodeRef.current = null
+    setPlayingSysId(null)
+  }, [])
+
+  const playSysRecording = useCallback(
+    (rec: Recording) => {
+      stopSysPlayback()
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+        audioCtxRef.current = new AudioContext({ sampleRate: SAMPLE_RATE })
+      }
+      const ctx = audioCtxRef.current
+      const buffer = ctx.createBuffer(1, rec.audio.length, SAMPLE_RATE)
+      buffer.copyToChannel(rec.audio, 0)
+      const source = ctx.createBufferSource()
+      source.buffer = buffer
+      source.connect(ctx.destination)
+      source.onended = () => {
+        setPlayingSysId((id) => (id === rec.id ? null : id))
+        sysSourceNodeRef.current = null
+      }
+      source.start()
+      sysSourceNodeRef.current = source
+      setPlayingSysId(rec.id)
+    },
+    [stopSysPlayback],
+  )
 
   const playDenoisedRecording = useCallback(
     (rec: Recording) => {
@@ -190,7 +236,7 @@ export default function App() {
     return out
   }
 
-  const start = useCallback(async () => {
+  const startMicAudio = useCallback(async () => {
     const myvad = await MicVAD.new({
       // Static assets served from renderer publicDir (src/renderer/public/)
       baseAssetPath: '/',
@@ -241,8 +287,8 @@ export default function App() {
         setVolume(prob.isSpeech)
         if (!isSpeakingRef.current) return
         streamingFramesRef.current.push(new Float32Array(frame))
-        if (streamingFramesRef.current.length >= 16) {
-          const chunks = streamingFramesRef.current.splice(0, 16)
+        if (streamingFramesRef.current.length >= STREAMING_FRAMES) {
+          const chunks = streamingFramesRef.current.splice(0, STREAMING_FRAMES)
           window.electron?.sendAudio(mergeFrames(chunks).buffer as ArrayBuffer, 0, false)
         }
       },
@@ -262,7 +308,7 @@ export default function App() {
     })
   }, [sourceLang, mode, selectedDeviceId])
 
-  const stop = useCallback(async () => {
+  const stopMicAudio = useCallback(async () => {
     await vadRef.current?.destroy()
     vadRef.current = null
     setRecording(false)
@@ -307,6 +353,11 @@ export default function App() {
         }
         window.electron?.sendAudio(audio.buffer as ArrayBuffer, 1, true)
         setSysVolume(0)
+        const id = nextSysIdRef.current++
+        setSysRecordings((prev) => [
+          { id, audio: audio.slice(), duration: audio.length / SAMPLE_RATE, timestamp: new Date() },
+          ...prev,
+        ])
       },
       onVADMisfire: () => {
         isSysSpeakingRef.current = false
@@ -318,8 +369,8 @@ export default function App() {
         setSysVolume(prob.isSpeech)
         if (!isSysSpeakingRef.current) return
         sysStreamingFramesRef.current.push(new Float32Array(frame))
-        if (sysStreamingFramesRef.current.length >= 16) {
-          const chunks = sysStreamingFramesRef.current.splice(0, 16)
+        if (sysStreamingFramesRef.current.length >= STREAMING_FRAMES) {
+          const chunks = sysStreamingFramesRef.current.splice(0, STREAMING_FRAMES)
           window.electron?.sendAudio(mergeFrames(chunks).buffer as ArrayBuffer, 1, false)
         }
       },
@@ -371,11 +422,10 @@ export default function App() {
             {(['transcript', 'translate'] as Mode[]).map((m) => (
               <button
                 key={m}
-                className={`flex-1 py-1.5 text-sm font-medium transition-colors ${
-                  mode === m
+                className={`flex-1 py-1.5 text-sm font-medium transition-colors ${mode === m
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-background text-muted-foreground hover:bg-muted'
-                }`}
+                  }`}
                 disabled={recording}
                 onClick={() => {
                   setMode(m)
@@ -442,7 +492,7 @@ export default function App() {
           <Button
             className="w-full"
             variant={recording ? 'destructive' : 'default'}
-            onClick={recording ? stop : start}
+            onClick={recording ? stopMicAudio : startMicAudio}
           >
             {recording ? (
               <>
@@ -481,30 +531,61 @@ export default function App() {
             )}
           </Button>
 
-          {mode === 'transcript' && transcript && (
-            <div className={`rounded-md bg-muted p-3 text-sm break-words transition-opacity ${transcriptInterim ? 'italic opacity-60' : 'text-muted-foreground'}`}>
-              {transcript}
-              {transcriptInterim && <span className="animate-pulse"> ···</span>}
+          {/* Mic text output */}
+          {mode === 'transcript' && micTranscript && (
+            <div className={`rounded-md bg-muted p-3 text-sm break-words ${micTranscriptInterim ? 'italic opacity-60' : 'text-muted-foreground'}`}>
+              <div className="text-xs font-medium text-foreground mb-1 flex items-center gap-1">
+                <Mic className="h-3 w-3" /> 麥克風
+              </div>
+              {micTranscript}
+              {micTranscriptInterim && <span className="animate-pulse"> ···</span>}
+            </div>
+          )}
+          {mode === 'translate' && micTranscript && (
+            <div className={`rounded-md bg-muted p-3 text-sm break-words ${micTranscriptInterim ? 'italic opacity-60' : 'text-muted-foreground'}`}>
+              <div className="text-xs font-medium text-foreground mb-1 flex items-center gap-1">
+                <Mic className="h-3 w-3" /> 麥克風原文
+              </div>
+              {micTranscript}
+              {micTranscriptInterim && <span className="animate-pulse"> ···</span>}
+            </div>
+          )}
+          {mode === 'translate' && micTranslation && (
+            <div className={`rounded-md bg-muted p-3 text-sm break-words ${micTranslationInterim ? 'italic opacity-60' : 'text-muted-foreground'}`}>
+              <div className="text-xs font-medium text-foreground mb-1 flex items-center gap-1">
+                <Mic className="h-3 w-3" /> 麥克風翻譯
+              </div>
+              {micTranslation}
+              {micTranslationInterim && <span className="animate-pulse"> ···</span>}
             </div>
           )}
 
-          {mode === 'translate' && transcript && (
-            <div className={`rounded-md bg-muted p-3 text-sm break-words transition-opacity ${transcriptInterim ? 'italic opacity-60' : 'text-muted-foreground'}`}>
-              <div className="text-xs font-medium text-foreground mb-1">
-                原文
+          {/* System audio text output */}
+          {mode === 'transcript' && sysTranscript && (
+            <div className={`rounded-md bg-blue-50 dark:bg-blue-950 p-3 text-sm break-words ${sysTranscriptInterim ? 'italic opacity-60' : 'text-muted-foreground'}`}>
+              <div className="text-xs font-medium text-foreground mb-1 flex items-center gap-1">
+                <Monitor className="h-3 w-3" /> 系統音訊
               </div>
-              {transcript}
-              {transcriptInterim && <span className="animate-pulse"> ···</span>}
+              {sysTranscript}
+              {sysTranscriptInterim && <span className="animate-pulse"> ···</span>}
             </div>
           )}
-
-          {mode === 'translate' && translation && (
-            <div className={`rounded-md bg-muted p-3 text-sm break-words transition-opacity ${translationInterim ? 'italic opacity-60' : 'text-muted-foreground'}`}>
-              <div className="text-xs font-medium text-foreground mb-1">
-                翻譯
+          {mode === 'translate' && sysTranscript && (
+            <div className={`rounded-md bg-blue-50 dark:bg-blue-950 p-3 text-sm break-words ${sysTranscriptInterim ? 'italic opacity-60' : 'text-muted-foreground'}`}>
+              <div className="text-xs font-medium text-foreground mb-1 flex items-center gap-1">
+                <Monitor className="h-3 w-3" /> 系統音訊原文
               </div>
-              {translation}
-              {translationInterim && <span className="animate-pulse"> ···</span>}
+              {sysTranscript}
+              {sysTranscriptInterim && <span className="animate-pulse"> ···</span>}
+            </div>
+          )}
+          {mode === 'translate' && sysTranslation && (
+            <div className={`rounded-md bg-blue-50 dark:bg-blue-950 p-3 text-sm break-words ${sysTranslationInterim ? 'italic opacity-60' : 'text-muted-foreground'}`}>
+              <div className="text-xs font-medium text-foreground mb-1 flex items-center gap-1">
+                <Monitor className="h-3 w-3" /> 系統音訊翻譯
+              </div>
+              {sysTranslation}
+              {sysTranslationInterim && <span className="animate-pulse"> ···</span>}
             </div>
           )}
 
@@ -562,11 +643,61 @@ export default function App() {
             </div>
           )}
 
+          {sysRecordings.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">
+                  System Audio ({sysRecordings.length})
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => { stopSysPlayback(); setSysRecordings([]) }}
+                  title="Clear all"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {sysRecordings.map((rec) => (
+                  <div
+                    key={rec.id}
+                    className="flex items-center gap-2 rounded-md bg-muted px-2 py-1 text-xs"
+                  >
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0"
+                      onClick={() =>
+                        playingSysId === rec.id
+                          ? stopSysPlayback()
+                          : playSysRecording(rec)
+                      }
+                    >
+                      {playingSysId === rec.id ? (
+                        <Square className="h-3 w-3" />
+                      ) : (
+                        <Play className="h-3 w-3" />
+                      )}
+                    </Button>
+                    <span className="flex-1 text-muted-foreground">
+                      {rec.timestamp.toLocaleTimeString()}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {rec.duration.toFixed(1)}s
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {recordings.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-muted-foreground">
-                  Raw Recordings ({recordings.length})
+                  Mic Recordings ({recordings.length})
                 </span>
                 <Button
                   variant="ghost"
