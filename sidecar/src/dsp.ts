@@ -90,12 +90,13 @@ export function parseAudioFrame(data: Buffer): {
   return { isFinal, channel, pcm: new Float32Array(ab) }
 }
 
-/** Build the denoised-PCM binary frame sent back to Electron: [0xDA][Float32Array bytes] */
-export function buildDenoisedFrame(pcm: Float32Array): Uint8Array {
+/** Build the denoised-PCM binary frame sent back to Electron: [0xDA][channel: 0=mic,1=loopback][Float32Array bytes] */
+export function buildDenoisedFrame(pcm: Float32Array, channel: 'mic' | 'loopback'): Uint8Array {
   const pcmBytes = new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength)
-  const frame = new Uint8Array(1 + pcmBytes.byteLength)
+  const frame = new Uint8Array(2 + pcmBytes.byteLength)
   frame[0] = 0xda
-  frame.set(pcmBytes, 1)
+  frame[1] = channel === 'mic' ? 0 : 1
+  frame.set(pcmBytes, 2)
   return frame
 }
 

@@ -39,13 +39,14 @@ function attachSidecarHandlers(sock: WebSocket) {
     if (isBinary) {
       const buf = data as Buffer
       if (buf[0] === 0xda) {
-        const pcmBuf = buf.subarray(1)
+        const channel = buf[1] === 0 ? 'mic' : 'loopback'
+        const pcmBuf = buf.subarray(2)
         // Copy into a clean ArrayBuffer so IPC can transfer it
         const ab = pcmBuf.buffer.slice(
           pcmBuf.byteOffset,
           pcmBuf.byteOffset + pcmBuf.byteLength,
         )
-        win.webContents.send('denoised-audio', ab)
+        win.webContents.send('denoised-audio', { channel, buffer: ab })
       }
       return
     }

@@ -22,19 +22,24 @@ const INCOMING_SAMPLE_RATE = Number(process.env.INCOMING_SAMPLE_RATE ?? 48000)
 type Channel = 'mic' | 'loopback'
 type Mode = 'transcript' | 'translate'
 
+interface ChannelState {
+  processing: boolean
+  streamBuffer: Float32Array[]
+  interimTimer: ReturnType<typeof setTimeout> | null
+  pendingFinal: Float32Array | null
+}
+
 interface Session {
   ws: WebSocket
   sourceLang: string
   sampleRate: number
   mode: Mode
   running: boolean
-  // Unified flag: true while any Whisper call is in-flight
-  processing: boolean
-  // Accumulated interim PCM frames (growing window since speech start)
-  streamBuffer: Float32Array[]
-  interimTimer: ReturnType<typeof setTimeout> | null
-  // Queued final segment waiting for current processing to finish
-  pendingFinal: { pcm: Float32Array; channel: Channel } | null
+  channels: Record<Channel, ChannelState>
+}
+
+function makeChannelState(): ChannelState {
+  return { processing: false, streamBuffer: [], interimTimer: null, pendingFinal: null }
 }
 
 function send(ws: WebSocket, payload: object) {
@@ -90,13 +95,14 @@ function mergeBuffer(chunks: Float32Array[]): Float32Array {
   return out
 }
 
-function runPendingFinal(session: Session) {
-  if (!session.pendingFinal) return
-  const { pcm, channel } = session.pendingFinal
-  session.pendingFinal = null
-  session.processing = true
+function runPendingFinal(session: Session, channel: Channel) {
+  const ch = session.channels[channel]
+  if (!ch.pendingFinal) return
+  const pcm = ch.pendingFinal
+  ch.pendingFinal = null
+  ch.processing = true
   transcribeSegment(session, pcm, channel).finally(() => {
-    session.processing = false
+    ch.processing = false
   })
 }
 
@@ -140,7 +146,7 @@ async function transcribeSegment(
 
   // Send denoised PCM back to Electron as binary frame: [0xDA][Float32Array bytes]
   if (session.ws.readyState === session.ws.OPEN) {
-    session.ws.send(buildDenoisedFrame(denoised))
+    session.ws.send(buildDenoisedFrame(denoised, channel))
   }
 
   send(session.ws, { type: 'status', state: 'processing' })
@@ -191,35 +197,36 @@ function handleAudio(session: Session, data: Buffer) {
   if (!session.running) return
 
   const { isFinal, channel, pcm } = parseAudioFrame(data)
+  const ch = session.channels[channel]
 
   if (!isFinal) {
     // Interim chunk: append to growing buffer, debounce Whisper run
-    session.streamBuffer.push(pcm)
-    if (session.interimTimer) clearTimeout(session.interimTimer)
-    session.interimTimer = setTimeout(() => {
-      session.interimTimer = null
-      if (session.processing || session.streamBuffer.length === 0) return
-      const merged = mergeBuffer(session.streamBuffer)
-      session.processing = true
+    ch.streamBuffer.push(pcm)
+    if (ch.interimTimer) clearTimeout(ch.interimTimer)
+    ch.interimTimer = setTimeout(() => {
+      ch.interimTimer = null
+      if (ch.processing || ch.streamBuffer.length === 0) return
+      const merged = mergeBuffer(ch.streamBuffer)
+      ch.processing = true
       transcribeInterim(session, merged, channel).finally(() => {
-        session.processing = false
-        runPendingFinal(session)
+        ch.processing = false
+        runPendingFinal(session, channel)
       })
     }, 200)
     return
   }
 
   // Final chunk: clear stream state, run definitive transcription
-  if (session.interimTimer) { clearTimeout(session.interimTimer); session.interimTimer = null }
-  session.streamBuffer = []
+  if (ch.interimTimer) { clearTimeout(ch.interimTimer); ch.interimTimer = null }
+  ch.streamBuffer = []
 
-  if (session.processing) {
-    session.pendingFinal = { pcm, channel }
+  if (ch.processing) {
+    ch.pendingFinal = pcm
     return
   }
-  session.processing = true
+  ch.processing = true
   transcribeSegment(session, pcm, channel).finally(() => {
-    session.processing = false
+    ch.processing = false
   })
 }
 
@@ -238,10 +245,10 @@ async function main() {
       sampleRate: INCOMING_SAMPLE_RATE,
       mode: 'transcript',
       running: false,
-      processing: false,
-      streamBuffer: [],
-      interimTimer: null,
-      pendingFinal: null,
+      channels: {
+        mic: makeChannelState(),
+        loopback: makeChannelState(),
+      },
     }
 
     send(ws, { type: 'status', state: 'idle' })

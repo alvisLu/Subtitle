@@ -16,58 +16,76 @@ export type MicSegment = {
 
 type Props = {
   segments: MicSegment[]
-  interim: string
-  translationInterim: string
+  micInterim?: string
+  micTranslationInterim?: string
+  sysInterim?: string
+  sysTranslationInterim?: string
   mode: 'transcript' | 'translate'
-  playingMicSegId: number | null
+  playingRawSegId: number | null
   playingDenoisedSegId: number | null
   onClear: () => void
-  onPlayMic: (segId: number, audio: Float32Array) => void
-  onStopMic: () => void
+  onPlayRaw: (segId: number, audio: Float32Array) => void
+  onStopRaw: () => void
   onPlayDenoised: (segId: number, audio: Float32Array) => void
   onStopDenoised: () => void
 }
 
 export function MicSegmentList({
   segments,
-  interim,
-  translationInterim,
+  micInterim,
+  micTranslationInterim,
+  sysInterim,
+  sysTranslationInterim,
   mode,
-  playingMicSegId,
+  playingRawSegId,
   playingDenoisedSegId,
   onClear,
-  onPlayMic,
-  onStopMic,
+  onPlayRaw,
+  onStopRaw,
   onPlayDenoised,
   onStopDenoised,
 }: Props) {
-  if (segments.length === 0 && !interim) return null
+  if (segments.length === 0 && !micInterim && !sysInterim) return null
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-          Auto list ({segments.length})
+          Segments ({segments.length})
         </span>
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClear}>
           <Trash2 className="h-3 w-3" />
         </Button>
       </div>
       <div className="space-y-1 max-h-60 overflow-y-auto">
-        {(interim || translationInterim) && (
+        {micInterim && (
           <div className="rounded-md bg-muted p-3 text-sm break-words italic opacity-60">
-            {/* <div className="rounded-md bg-blue-50 dark:bg-blue-950 p-3 text-sm break-words italic opacity-60"> */}
-            <div>{interim}<span className="animate-pulse"> ···</span></div>
-            {mode === 'translate' && translationInterim && (
+            <div className="flex items-center gap-1 mb-1 text-xs text-muted-foreground">
+              <Mic className="h-3 w-3" />
+            </div>
+            <div>{micInterim}<span className="animate-pulse"> ···</span></div>
+            {mode === 'translate' && micTranslationInterim && (
               <div className="mt-1 pt-1 border-t border-border/40">
-                {translationInterim}<span className="animate-pulse"> ···</span>
+                {micTranslationInterim}<span className="animate-pulse"> ···</span>
+              </div>
+            )}
+          </div>
+        )}
+        {sysInterim && (
+          <div className="rounded-md bg-muted p-3 text-sm break-words italic opacity-60">
+            <div className="flex items-center gap-1 mb-1 text-xs text-muted-foreground">
+              <Monitor className="h-3 w-3" />
+            </div>
+            <div>{sysInterim}<span className="animate-pulse"> ···</span></div>
+            {mode === 'translate' && sysTranslationInterim && (
+              <div className="mt-1 pt-1 border-t border-border/40">
+                {sysTranslationInterim}<span className="animate-pulse"> ···</span>
               </div>
             )}
           </div>
         )}
         {segments.filter(seg => seg.text).map(seg => (
-          <div key={seg.id} className="rounded-md bg-muted p-3 text-sm break-words text-muted-foreground">
-            {/* <div key={seg.id} className="rounded-md bg-blue-50 dark:bg-blue-950 p-3 text-sm break-words text-muted-foreground"> */}
+          <div key={`${seg.channel}-${seg.id}`} className="rounded-md bg-muted p-3 text-sm break-words text-muted-foreground">
             <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
               {
                 seg.channel === 'mic' ? < Mic className="h-3 w-3" /> :
@@ -101,12 +119,12 @@ export function MicSegmentList({
                   <button
                     className="flex items-center gap-1 text-xs rounded px-1.5 py-0.5 bg-background border border-border hover:bg-muted-foreground/10"
                     onClick={() =>
-                      playingMicSegId === seg.id
-                        ? onStopMic()
-                        : onPlayMic(seg.id, seg.micAudio!.audio)
+                      playingRawSegId === seg.id
+                        ? onStopRaw()
+                        : onPlayRaw(seg.id, seg.micAudio!.audio)
                     }
                   >
-                    {playingMicSegId === seg.id
+                    {playingRawSegId === seg.id
                       ? <Square className="h-2.5 w-2.5" />
                       : <Play className="h-2.5 w-2.5" />
                     }

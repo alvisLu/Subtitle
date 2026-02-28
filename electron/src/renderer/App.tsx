@@ -68,14 +68,13 @@ export default function App() {
   const [micSegments, setMicSegments] = useState<MicSegment[]>([])
   const [micTranscriptInterim, setMicTranscriptInterim] = useState('')
   const [micTranslationInterim, setMicTranslationInterim] = useState('')
-  const [playingMicSegId, setPlayingMicSegId] = useState<number | null>(null)
+  const [playingRawSegId, setPlayingRawSegId] = useState<number | null>(null)
   const [playingDenoisedSegId, setPlayingDenoisedSegId] = useState<number | null>(null)
 
   // System audio
   const [sysSegments, setSysSegments] = useState<MicSegment[]>([])
   const [sysTranscriptInterim, setSysTranscriptInterim] = useState('')
   const [sysTranslationInterim, setSysTranslationInterim] = useState('')
-  const [playingSysSegId, setPlayingSysSegId] = useState<number | null>(null)
 
   const [mode, setMode] = useState<Mode>('transcript')
   const [sourceLang, setSourceLang] = useState('zh')
@@ -89,11 +88,16 @@ export default function App() {
   const streamingFramesRef = useRef<Float32Array[]>([])
   const isSpeakingRef = useRef(false)
 
-  // Mic segment counters (FIFO correlation with sidecar responses)
+  // Per-channel FIFO counters — each channel has independent ID space
   const nextMicSegIdRef = useRef(0)
-  const nextDenoisedSegIdRef = useRef(0)
-  const nextTranscriptSegIdRef = useRef(0)
-  const nextTranslationSegIdRef = useRef(0)
+  const nextMicTranscriptIdRef = useRef(0)
+  const nextMicTranslationIdRef = useRef(0)
+  const nextMicDenoisedIdRef = useRef(0)
+
+  const nextSysSegIdRef = useRef(0)
+  const nextSysTranscriptIdRef = useRef(0)
+  const nextSysTranslationIdRef = useRef(0)
+  const nextSysDenoisedIdRef = useRef(0)
 
   // System VAD
   const sysVadRef = useRef<MicVAD | null>(null)
@@ -104,7 +108,6 @@ export default function App() {
   // Audio playback
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null)
   const denoisedSourceNodeRef = useRef<AudioBufferSourceNode | null>(null)
-  const sysSourceNodeRef = useRef<AudioBufferSourceNode | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
 
   useEffect(() => {
@@ -134,7 +137,7 @@ export default function App() {
     window.electron.onTranscript(({ channel, text, final }) => {
       if (channel === 'loopback') {
         if (final) {
-          const segId = nextTranscriptSegIdRef.current++
+          const segId = nextSysTranscriptIdRef.current++
           setSysSegments(prev => prev.map(s =>
             s.id === segId ? { ...s, text, timestamp: new Date() } : s
           ))
@@ -144,7 +147,7 @@ export default function App() {
         }
       } else {
         if (final) {
-          const segId = nextTranscriptSegIdRef.current++
+          const segId = nextMicTranscriptIdRef.current++
           setMicSegments(prev => prev.map(s =>
             s.id === segId ? { ...s, text, timestamp: new Date() } : s
           ))
@@ -158,7 +161,7 @@ export default function App() {
       if (channel === 'loopback') {
         if (final) {
           setSysTranslationInterim('')
-          const segId = nextTranslationSegIdRef.current++
+          const segId = nextSysTranslationIdRef.current++
           setSysSegments(prev => prev.map(s =>
             s.id === segId ? { ...s, translation: text } : s
           ))
@@ -167,7 +170,7 @@ export default function App() {
         }
       } else {
         if (final) {
-          const segId = nextTranslationSegIdRef.current++
+          const segId = nextMicTranslationIdRef.current++
           setMicSegments(prev => prev.map(s =>
             s.id === segId ? { ...s, translation: text } : s
           ))
@@ -180,19 +183,23 @@ export default function App() {
     window.electron.onSttConfig((config) => {
       console.log('[STT] STT_BASE_CONFIG', config)
     })
-    window.electron.onDenoisedAudio((buffer) => {
+    window.electron.onDenoisedAudio(({ channel, buffer }) => {
       const audio = new Float32Array(buffer)
-      const segId = nextDenoisedSegIdRef.current++
-      setMicSegments(prev => prev.map(s =>
-        s.id === segId
-          ? { ...s, denoisedAudio: { audio, duration: audio.length / SAMPLE_RATE } }
-          : s
-      ))
-      setSysSegments(prev => prev.map(s =>
-        s.id === segId
-          ? { ...s, denoisedAudio: { audio, duration: audio.length / SAMPLE_RATE } }
-          : s
-      ))
+      if (channel === 'loopback') {
+        const segId = nextSysDenoisedIdRef.current++
+        setSysSegments(prev => prev.map(s =>
+          s.id === segId
+            ? { ...s, denoisedAudio: { audio, duration: audio.length / SAMPLE_RATE } }
+            : s
+        ))
+      } else {
+        const segId = nextMicDenoisedIdRef.current++
+        setMicSegments(prev => prev.map(s =>
+          s.id === segId
+            ? { ...s, denoisedAudio: { audio, duration: audio.length / SAMPLE_RATE } }
+            : s
+        ))
+      }
     })
     return () => {
       window.electron.removeAllListeners('transcript')
@@ -202,10 +209,10 @@ export default function App() {
     }
   }, [])
 
-  const stopMicPlayback = useCallback(() => {
+  const stopRawPlayback = useCallback(() => {
     sourceNodeRef.current?.stop()
     sourceNodeRef.current = null
-    setPlayingMicSegId(null)
+    setPlayingRawSegId(null)
   }, [])
 
   const stopDenoisedPlayback = useCallback(() => {
@@ -214,23 +221,13 @@ export default function App() {
     setPlayingDenoisedSegId(null)
   }, [])
 
-  const stopSysPlayback = useCallback(() => {
-    sysSourceNodeRef.current?.stop()
-    sysSourceNodeRef.current = null
-    setPlayingSysSegId(null)
-  }, [])
-
-  const playMicAudio = useCallback((segId: number, audio: Float32Array) => {
-    playAudio(audio, audioCtxRef, sourceNodeRef, segId, setPlayingMicSegId, stopMicPlayback)
-  }, [stopMicPlayback])
+  const playRawAudio = useCallback((segId: number, audio: Float32Array) => {
+    playAudio(audio, audioCtxRef, sourceNodeRef, segId, setPlayingRawSegId, stopRawPlayback)
+  }, [stopRawPlayback])
 
   const playDenoisedAudio = useCallback((segId: number, audio: Float32Array) => {
     playAudio(audio, audioCtxRef, denoisedSourceNodeRef, segId, setPlayingDenoisedSegId, stopDenoisedPlayback)
   }, [stopDenoisedPlayback])
-
-  const playSysAudio = useCallback((segId: number, audio: Float32Array) => {
-    playAudio(audio, audioCtxRef, sourceNodeRef, segId, setPlayingSysSegId, stopSysPlayback)
-  }, [stopSysPlayback])
 
   function mergeFrames(frames: Float32Array[]): Float32Array {
     const total = frames.reduce((s, f) => s + f.length, 0)
@@ -309,11 +306,11 @@ export default function App() {
     setRecording(false)
     setVolume(0)
     window.electron?.stopSession()
-    // Reset counters so next session's responses correlate correctly
+    // Reset mic counters so next session correlates correctly
     nextMicSegIdRef.current = 0
-    nextDenoisedSegIdRef.current = 0
-    nextTranscriptSegIdRef.current = 0
-    nextTranslationSegIdRef.current = 0
+    nextMicTranscriptIdRef.current = 0
+    nextMicTranslationIdRef.current = 0
+    nextMicDenoisedIdRef.current = 0
   }, [])
 
   const startSysAudio = useCallback(async () => {
@@ -352,7 +349,7 @@ export default function App() {
         }
         window.electron?.sendAudio(audio.buffer as ArrayBuffer, 1, true)
         setSysVolume(0)
-        const segId = nextMicSegIdRef.current++
+        const segId = nextSysSegIdRef.current++
         setSysSegments(prev => [{
           id: segId,
           channel: 'loopback',
@@ -399,6 +396,11 @@ export default function App() {
     isSysSpeakingRef.current = false
     setSystemCapture(false)
     setSysVolume(0)
+    // Reset sys counters so next session correlates correctly
+    nextSysSegIdRef.current = 0
+    nextSysTranscriptIdRef.current = 0
+    nextSysTranslationIdRef.current = 0
+    nextSysDenoisedIdRef.current = 0
   }, [])
 
   return (
@@ -523,43 +525,28 @@ export default function App() {
             )}
           </Button>
 
-          {/* Mic segments: transcript + audio clips per utterance */}
+          {/* Unified segment list: mic + system audio interleaved by time */}
           <MicSegmentList
-            segments={micSegments}
-            interim={micTranscriptInterim}
-            translationInterim={micTranslationInterim}
+            segments={[...micSegments, ...sysSegments].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())}
+            micInterim={micTranscriptInterim}
+            micTranslationInterim={micTranslationInterim}
+            sysInterim={sysTranscriptInterim}
+            sysTranslationInterim={sysTranslationInterim}
             mode={mode}
-            playingMicSegId={playingMicSegId}
+            playingRawSegId={playingRawSegId}
             playingDenoisedSegId={playingDenoisedSegId}
             onClear={() => {
-              stopMicPlayback()
+              stopRawPlayback()
               stopDenoisedPlayback()
               setMicSegments([])
+              setSysSegments([])
               setMicTranscriptInterim('')
               setMicTranslationInterim('')
-            }}
-            onPlayMic={playMicAudio}
-            onStopMic={stopMicPlayback}
-            onPlayDenoised={playDenoisedAudio}
-            onStopDenoised={stopDenoisedPlayback}
-          />
-
-          <MicSegmentList
-            segments={sysSegments}
-            interim={sysTranscriptInterim}
-            translationInterim={sysTranslationInterim}
-            mode={mode}
-            playingMicSegId={playingSysSegId}
-            playingDenoisedSegId={playingDenoisedSegId}
-            onClear={() => {
-              stopSysPlayback()
-              stopDenoisedPlayback()
-              setSysSegments([])
               setSysTranscriptInterim('')
               setSysTranslationInterim('')
             }}
-            onPlayMic={playSysAudio}
-            onStopMic={stopSysPlayback}
+            onPlayRaw={playRawAudio}
+            onStopRaw={stopRawPlayback}
             onPlayDenoised={playDenoisedAudio}
             onStopDenoised={stopDenoisedPlayback}
           />
