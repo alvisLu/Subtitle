@@ -84,7 +84,8 @@ export default function App() {
   const [sysTranslationInterim, setSysTranslationInterim] = useState('')
 
   const [mode, setMode] = useState<Mode>('transcript')
-  const [sourceLang, setSourceLang] = useState('zh')
+  const [sourceLang, setSourceLang] = useState('en')
+  const [targetLang, setTargetLang] = useState('zh')
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('')
   const [systemCapture, setSystemCapture] = useState(false)
@@ -354,12 +355,12 @@ export default function App() {
 
     window.electron?.startSession({
       sourceLang,
-      targetLang: 'en',
+      targetLang,
       engine: 'deepl',
       sampleRate: 16000,
       mode,
     })
-  }, [sourceLang, mode, selectedDeviceId])
+  }, [sourceLang, targetLang, mode, selectedDeviceId])
 
   const stopMicAudio = useCallback(async () => {
     await vadRef.current?.destroy()
@@ -467,12 +468,12 @@ export default function App() {
 
     window.electron?.startSession({
       sourceLang,
-      targetLang: 'en',
+      targetLang,
       engine: 'deepl',
       sampleRate: 16000,
       mode,
     })
-  }, [sourceLang, mode])
+  }, [sourceLang, targetLang, mode])
 
   const stopSysAudio = useCallback(async () => {
     await sysVadRef.current?.destroy()
@@ -596,8 +597,8 @@ export default function App() {
                 ))}
               </div>
 
-              {/* Language selector */}
-              {
+              {/* Language selectors */}
+              <div className="flex items-center gap-2">
                 <Select
                   value={sourceLang}
                   onValueChange={(val) => {
@@ -617,7 +618,24 @@ export default function App() {
                     ))}
                   </SelectContent>
                 </Select>
-              }
+                <span className="text-muted-foreground text-sm">→</span>
+                <Select
+                  value={targetLang}
+                  onValueChange={setTargetLang}
+                  disabled={recording}
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LANGUAGES.map((lang) => (
+                      <SelectItem key={lang.code} value={lang.code}>
+                        {lang.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardHeader>
           <Separator />
