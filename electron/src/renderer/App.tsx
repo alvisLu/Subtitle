@@ -587,10 +587,7 @@ export default function App() {
                         : 'bg-background text-muted-foreground hover:bg-muted'
                     }`}
                     disabled={recording}
-                    onClick={() => {
-                      setMode(m)
-                      if (recording) window.electron?.setMode(m)
-                    }}
+                    onClick={() => setMode(m)}
                   >
                     {m === 'transcript' ? 'Transcript' : 'Translation'}
                   </button>

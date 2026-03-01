@@ -143,12 +143,6 @@ ipcMain.on('session:stop', () => {
   }
 })
 
-ipcMain.on('session:setMode', (_e, mode: string) => {
-  if (ws?.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'setMode', mode }))
-  }
-})
-
 // IPC: list screen sources for ScreenCaptureKit system audio
 ipcMain.handle('desktop-capturer:getSources', async () => {
   const sources = await desktopCapturer.getSources({

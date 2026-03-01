@@ -89,15 +89,6 @@ function handleControl(session: Session, raw: string) {
     console.log(
       `[Server] Started — lang: ${session.sourceLang} → ${session.targetLang}, mode: ${session.mode}`,
     )
-  } else if (msg.type === 'setLang') {
-    session.sourceLang = msg.sourceLang ?? session.sourceLang
-    session.targetLang = msg.targetLang ?? session.targetLang
-    console.log(
-      `[Server] Language changed to: ${session.sourceLang} → ${session.targetLang}`,
-    )
-  } else if (msg.type === 'setMode') {
-    session.mode = msg.mode ?? session.mode
-    console.log(`[Server] Mode changed to: ${session.mode}`)
   } else if (msg.type === 'stop') {
     session.running = false
     send(session.ws, { type: 'status', state: 'idle' })
