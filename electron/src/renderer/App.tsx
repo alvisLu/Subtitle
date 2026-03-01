@@ -1,7 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { MicVAD } from '@ricky0123/vad-web'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { MicOff, Monitor, Mic, Clock } from 'lucide-react'
@@ -119,7 +118,6 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false
-
     async function refreshAudioDevices() {
       const all = await navigator.mediaDevices.enumerateDevices()
       if (cancelled) return
@@ -149,9 +147,9 @@ export default function App() {
         if (final) {
           const segId = nextSysTranscriptIdRef.current++
           setSysSegments((prev) =>
-            prev.map((s) =>
-              s.id === segId ? { ...s, text, timestamp: new Date() } : s,
-            ),
+            prev.map((s) => {
+              return s.id === segId ? { ...s, text, timestamp: new Date() } : s
+            }),
           )
           setSysTranscriptInterim('')
         } else {
@@ -321,6 +319,7 @@ export default function App() {
             id: segId,
             channel: 'mic',
             timestamp: new Date(),
+            text: '',
             micAudio: {
               audio: audio.slice(),
               duration: audio.length / SAMPLE_RATE,
@@ -392,6 +391,7 @@ export default function App() {
       onnxWASMBasePath: '/',
       model: 'v5',
       getStream: async () => {
+        console.log('speeching')
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             mandatory: {
@@ -427,6 +427,7 @@ export default function App() {
             id: segId,
             channel: 'loopback',
             timestamp: new Date(),
+            text: '',
             micAudio: {
               audio: audio.slice(),
               duration: audio.length / SAMPLE_RATE,
@@ -490,7 +491,7 @@ export default function App() {
 
   return (
     <div className="h-screen bg-background flex flex-col">
-      <div className="w-[100%] h-[10%] flex items-center justify-between p-6 border-b border-border">
+      <div className="w-full flex items-center justify-between p-6 border-b border-border">
         <div className="flex items-center justify-between gap-8">
           <h1 className="text-3xl font-semibold">TranBot</h1>
 
@@ -573,7 +574,7 @@ export default function App() {
         </Badge> */}
       </div>
 
-      <div className="h-[85%] flex items-start justify-center p-8 overflow-y-auto">
+      <div className="h-full flex items-start justify-center p-8 overflow-y-auto">
         <Card className="w-full h-full flex flex-col">
           <CardHeader className="">
             <div className="flex flex-row justify-start items-center gap-2">

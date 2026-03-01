@@ -8,7 +8,7 @@ export type MicSegment = {
   id: number
   timestamp: Date
   channel: Channel
-  text?: string
+  text: string
   translation?: string
   micAudio?: AudioClip
   denoisedAudio?: AudioClip

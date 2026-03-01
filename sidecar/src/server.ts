@@ -39,7 +39,12 @@ interface Session {
 }
 
 function makeChannelState(): ChannelState {
-  return { processing: false, streamBuffer: [], interimTimer: null, pendingFinal: null }
+  return {
+    processing: false,
+    streamBuffer: [],
+    interimTimer: null,
+    pendingFinal: null,
+  }
 }
 
 function send(ws: WebSocket, payload: object) {
@@ -91,7 +96,10 @@ function mergeBuffer(chunks: Float32Array[]): Float32Array {
   const total = chunks.reduce((s, f) => s + f.length, 0)
   const out = new Float32Array(total)
   let offset = 0
-  for (const f of chunks) { out.set(f, offset); offset += f.length }
+  for (const f of chunks) {
+    out.set(f, offset)
+    offset += f.length
+  }
   return out
 }
 
@@ -116,12 +124,33 @@ async function transcribeInterim(
   const denoised = denoiseAudio(pcm, session.sampleRate)
   try {
     if (session.mode === 'translate') {
-      const { original, translated } = await translate(denoised, session.sampleRate, session.sourceLang)
-      if (original) send(session.ws, { type: 'transcript', channel, text: original, final: false })
-      if (translated) send(session.ws, { type: 'translation', channel, text: translated, final: false })
+      const { original, translated } = await translate(
+        denoised,
+        session.sampleRate,
+        session.sourceLang,
+      )
+      if (original)
+        send(session.ws, {
+          type: 'transcript',
+          channel,
+          text: original,
+          final: false,
+        })
+      if (translated)
+        send(session.ws, {
+          type: 'translation',
+          channel,
+          text: translated,
+          final: false,
+        })
     } else {
-      const text = await transcribe(denoised, session.sampleRate, session.sourceLang)
-      if (text) send(session.ws, { type: 'transcript', channel, text, final: false })
+      const text = await transcribe(
+        denoised,
+        session.sampleRate,
+        session.sourceLang,
+      )
+      if (text)
+        send(session.ws, { type: 'transcript', channel, text, final: false })
     }
   } catch {
     // ignore interim errors silently
@@ -217,7 +246,10 @@ function handleAudio(session: Session, data: Buffer) {
   }
 
   // Final chunk: clear stream state, run definitive transcription
-  if (ch.interimTimer) { clearTimeout(ch.interimTimer); ch.interimTimer = null }
+  if (ch.interimTimer) {
+    clearTimeout(ch.interimTimer)
+    ch.interimTimer = null
+  }
   ch.streamBuffer = []
 
   if (ch.processing) {
