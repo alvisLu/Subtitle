@@ -5,7 +5,7 @@ export type AudioClip = { audio: Float32Array; duration: number }
 export type Channel = 'mic' | 'loopback'
 
 export type MicSegment = {
-  id: number
+  id: string
   timestamp: Date
   channel: Channel
   text: string
@@ -21,12 +21,12 @@ type Props = {
   sysInterim?: string
   sysTranslationInterim?: string
   mode: 'transcript' | 'translate'
-  playingRawSegId: number | null
-  playingDenoisedSegId: number | null
+  playingRawSegId: string | null
+  playingDenoisedSegId: string | null
   onClear: () => void
-  onPlayRaw: (segId: number, audio: Float32Array) => void
+  onPlayRaw: (segId: string, audio: Float32Array) => void
   onStopRaw: () => void
-  onPlayDenoised: (segId: number, audio: Float32Array) => void
+  onPlayDenoised: (segId: string, audio: Float32Array) => void
   onStopDenoised: () => void
 }
 

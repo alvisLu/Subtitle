@@ -72,34 +72,34 @@ export function denoiseAudio(
 }
 
 /** Parse a binary audio frame from the client.
- *  Frame format: [isFinal byte (0=interim, 1=final)][channel byte (0=mic, 1=loopback)][id: uint32LE 4 bytes][Float32 PCM bytes...]
+ *  Frame format: [isFinal byte (0=interim, 1=final)][channel byte (0=mic, 1=loopback)][id: 21 bytes ASCII][Float32 PCM bytes...]
  */
 export function parseAudioFrame(data: Buffer): {
   isFinal: boolean
   channel: 'mic' | 'loopback'
-  id: number
+  id: string
   pcm: Float32Array
 } {
   const isFinal = data[0] === 1
   const channel = data[1] === 0 ? 'mic' : 'loopback'
-  const id = data.readUInt32LE(2)
+  const id = data.toString('ascii', 2, 23)
   // Float32Array requires 4-byte aligned offset; copy PCM bytes into a fresh ArrayBuffer
-  const pcmByteLength = data.length - 6
+  const pcmByteLength = data.length - 23
   const ab = new ArrayBuffer(pcmByteLength)
   new Uint8Array(ab).set(
-    new Uint8Array(data.buffer, data.byteOffset + 6, pcmByteLength),
+    new Uint8Array(data.buffer, data.byteOffset + 23, pcmByteLength),
   )
   return { isFinal, channel, id, pcm: new Float32Array(ab) }
 }
 
-/** Build the denoised-PCM binary frame sent back to Electron: [0xDA][channel: 0=mic,1=loopback][id: uint32LE 4 bytes][Float32Array bytes] */
-export function buildDenoisedFrame(pcm: Float32Array, channel: 'mic' | 'loopback', id: number): Uint8Array {
+/** Build the denoised-PCM binary frame sent back to Electron: [0xDA][channel: 0=mic,1=loopback][id: 21 bytes ASCII][Float32Array bytes] */
+export function buildDenoisedFrame(pcm: Float32Array, channel: 'mic' | 'loopback', id: string): Uint8Array {
   const pcmBytes = new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength)
-  const frame = new Uint8Array(6 + pcmBytes.byteLength)
+  const frame = new Uint8Array(23 + pcmBytes.byteLength)
   frame[0] = 0xda
   frame[1] = channel === 'mic' ? 0 : 1
-  new DataView(frame.buffer).setUint32(2, id, true)
-  frame.set(pcmBytes, 6)
+  for (let i = 0; i < 21; i++) frame[2 + i] = id.charCodeAt(i) || 0
+  frame.set(pcmBytes, 23)
   return frame
 }
 

@@ -27,8 +27,8 @@ interface ChannelState {
   streamBuffer: Float32Array[]
   interimTimer: ReturnType<typeof setTimeout> | null
   pendingFinal: Float32Array | null
-  pendingFinalId: number
-  currentId: number
+  pendingFinalId: string
+  currentId: string
 }
 
 interface Session {
@@ -46,8 +46,8 @@ function makeChannelState(): ChannelState {
     streamBuffer: [],
     interimTimer: null,
     pendingFinal: null,
-    pendingFinalId: 0,
-    currentId: 0,
+    pendingFinalId: '',
+    currentId: '',
   }
 }
 
@@ -123,7 +123,7 @@ async function transcribeInterim(
   session: Session,
   pcm: Float32Array,
   channel: Channel,
-  id: number,
+  id: string,
 ) {
   // Skip near-silent interim frames (Float32 RMS < 0.01 ≈ inaudible)
   if (rms(pcm) < 0.01) return
@@ -169,7 +169,7 @@ async function transcribeSegment(
   session: Session,
   pcm: Float32Array,
   channel: Channel,
-  id: number,
+  id: string,
 ) {
   // Skip silent audio as a safety net (VAD should have already filtered silence)
   const segmentRms = rms(pcm)

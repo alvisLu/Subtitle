@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
+import { nanoid } from 'nanoid'
 import { MicVAD } from '@ricky0123/vad-web'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -42,8 +43,8 @@ function playAudio(
   audio: Float32Array,
   audioCtxRef: { current: AudioContext | null },
   nodeRef: { current: AudioBufferSourceNode | null },
-  segId: number,
-  setPlaying: React.Dispatch<React.SetStateAction<number | null>>,
+  segId: string,
+  setPlaying: React.Dispatch<React.SetStateAction<string | null>>,
   stopFn: () => void,
 ) {
   stopFn()
@@ -72,9 +73,9 @@ export default function App() {
   const [micSegments, setMicSegments] = useState<MicSegment[]>([])
   const [micTranscriptInterim, setMicTranscriptInterim] = useState('')
   const [micTranslationInterim, setMicTranslationInterim] = useState('')
-  const [playingRawSegId, setPlayingRawSegId] = useState<number | null>(null)
+  const [playingRawSegId, setPlayingRawSegId] = useState<string | null>(null)
   const [playingDenoisedSegId, setPlayingDenoisedSegId] = useState<
-    number | null
+    string | null
   >(null)
 
   // System audio
@@ -94,12 +95,9 @@ export default function App() {
   const streamingFramesRef = useRef<Float32Array[]>([])
   const isSpeakingRef = useRef(false)
 
-  // Per-channel segment ID counters
-  const nextMicSegIdRef = useRef(0)
-  const currentMicSegIdRef = useRef(0)
-
-  const nextSysSegIdRef = useRef(0)
-  const currentSysSegIdRef = useRef(0)
+  // Per-channel current segment ID (nanoid)
+  const currentMicSegIdRef = useRef('')
+  const currentSysSegIdRef = useRef('')
 
   // System VAD
   const sysVadRef = useRef<MicVAD | null>(null)
@@ -240,7 +238,7 @@ export default function App() {
   }, [])
 
   const playRawAudio = useCallback(
-    (segId: number, audio: Float32Array) => {
+    (segId: string, audio: Float32Array) => {
       playAudio(
         audio,
         audioCtxRef,
@@ -254,7 +252,7 @@ export default function App() {
   )
 
   const playDenoisedAudio = useCallback(
-    (segId: number, audio: Float32Array) => {
+    (segId: string, audio: Float32Array) => {
       playAudio(
         audio,
         audioCtxRef,
@@ -294,7 +292,7 @@ export default function App() {
       onSpeechStart: () => {
         isSpeakingRef.current = true
         streamingFramesRef.current = []
-        currentMicSegIdRef.current = nextMicSegIdRef.current++
+        currentMicSegIdRef.current = nanoid()
         setVolume(1)
       },
       onSpeechEnd: (audio: Float32Array) => {
@@ -373,8 +371,7 @@ export default function App() {
       timerRef.current = null
     }
     window.electron?.stopSession()
-    nextMicSegIdRef.current = 0
-    currentMicSegIdRef.current = 0
+    currentMicSegIdRef.current = ''
   }, [])
 
   const startSysAudio = useCallback(async () => {
@@ -407,7 +404,7 @@ export default function App() {
       onSpeechStart: () => {
         isSysSpeakingRef.current = true
         sysStreamingFramesRef.current = []
-        currentSysSegIdRef.current = nextSysSegIdRef.current++
+        currentSysSegIdRef.current = nanoid()
         setSysVolume(1)
       },
       onSpeechEnd: (audio: Float32Array) => {
@@ -486,8 +483,7 @@ export default function App() {
     isSysSpeakingRef.current = false
     setSystemCapture(false)
     setSysVolume(0)
-    nextSysSegIdRef.current = 0
-    currentSysSegIdRef.current = 0
+    currentSysSegIdRef.current = ''
   }, [])
 
   return (

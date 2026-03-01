@@ -35,13 +35,13 @@ function attachSidecarHandlers(sock: WebSocket) {
   sock.on('message', (data, isBinary) => {
     if (!win) return
 
-    // Binary frame: denoised audio [0xDA][channel][id: uint32LE][Float32Array bytes]
+    // Binary frame: denoised audio [0xDA][channel][id: 21 bytes ASCII][Float32Array bytes]
     if (isBinary) {
       const buf = data as Buffer
       if (buf[0] === 0xda) {
         const channel = buf[1] === 0 ? 'mic' : 'loopback'
-        const id = buf.readUInt32LE(2)
-        const pcmBuf = buf.subarray(6)
+        const id = buf.toString('ascii', 2, 23)
+        const pcmBuf = buf.subarray(23)
         // Copy into a clean ArrayBuffer so IPC can transfer it
         const ab = pcmBuf.buffer.slice(
           pcmBuf.byteOffset,
@@ -163,17 +163,17 @@ ipcMain.handle('desktop-capturer:getSources', async () => {
   return sources.map((s) => ({ id: s.id, name: s.name }))
 })
 
-// IPC: audio chunks from Renderer → prepend [isFinal][channel][id: uint32LE] → forward to sidecar
+// IPC: audio chunks from Renderer → prepend [isFinal][channel][id: 21 bytes ASCII] → forward to sidecar
 ipcMain.on(
   'audio:chunk',
-  (_e, buffer: ArrayBuffer, channel: 0 | 1, isFinal: boolean, id: number) => {
+  (_e, buffer: ArrayBuffer, channel: 0 | 1, isFinal: boolean, id: string) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return
     const pcmBytes = new Uint8Array(buffer)
-    const frame = new Uint8Array(6 + pcmBytes.byteLength)
+    const frame = new Uint8Array(23 + pcmBytes.byteLength)
     frame[0] = isFinal ? 1 : 0
     frame[1] = channel
-    new DataView(frame.buffer).setUint32(2, id, true)
-    frame.set(pcmBytes, 6)
+    for (let i = 0; i < 21; i++) frame[2 + i] = id.charCodeAt(i) || 0
+    frame.set(pcmBytes, 23)
     ws.send(frame)
   },
 )
