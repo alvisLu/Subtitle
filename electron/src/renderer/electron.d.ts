@@ -7,7 +7,6 @@ interface ElectronAPI {
     mode: 'transcript' | 'translate'
   }): void
   stopSession(): void
-  setLang(sourceLang: string, targetLang: string): void
   setMode(mode: 'transcript' | 'translate'): void
   sendAudio(buffer: ArrayBuffer, channel: 0 | 1, isFinal?: boolean, id?: string): void
   onTranscript(

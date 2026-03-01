@@ -11,9 +11,6 @@ contextBridge.exposeInMainWorld('electron', {
 
   stopSession: () => ipcRenderer.send('session:stop'),
 
-  setLang: (sourceLang: string, targetLang: string) =>
-    ipcRenderer.send('session:setLang', sourceLang, targetLang),
-
   setMode: (mode: 'transcript' | 'translate') =>
     ipcRenderer.send('session:setMode', mode),
 

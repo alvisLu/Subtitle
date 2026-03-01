@@ -601,10 +601,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <Select
                   value={sourceLang}
-                  onValueChange={(val) => {
-                    setSourceLang(val)
-                    if (recording) window.electron?.setLang(val, targetLang)
-                  }}
+                  onValueChange={setSourceLang}
                   disabled={recording}
                 >
                   <SelectTrigger className="w-32">
@@ -621,10 +618,7 @@ export default function App() {
                 <span className="text-muted-foreground text-sm">→</span>
                 <Select
                   value={targetLang}
-                  onValueChange={(val) => {
-                    setTargetLang(val)
-                    if (recording) window.electron?.setLang(sourceLang, val)
-                  }}
+                  onValueChange={setTargetLang}
                   disabled={recording}
                 >
                   <SelectTrigger className="w-32">

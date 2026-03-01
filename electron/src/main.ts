@@ -143,12 +143,6 @@ ipcMain.on('session:stop', () => {
   }
 })
 
-ipcMain.on('session:setLang', (_e, sourceLang: string, targetLang: string) => {
-  if (ws?.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'setLang', sourceLang, targetLang }))
-  }
-})
-
 ipcMain.on('session:setMode', (_e, mode: string) => {
   if (ws?.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'setMode', mode }))
