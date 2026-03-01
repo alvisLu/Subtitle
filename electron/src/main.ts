@@ -127,6 +127,7 @@ ipcMain.on(
         JSON.stringify({
           type: 'start',
           sourceLang: config.sourceLang,
+          targetLang: config.targetLang,
           sampleRate: config.sampleRate,
           mode: config.mode,
         }),
@@ -142,9 +143,9 @@ ipcMain.on('session:stop', () => {
   }
 })
 
-ipcMain.on('session:setLang', (_e, lang: string) => {
+ipcMain.on('session:setLang', (_e, sourceLang: string, targetLang: string) => {
   if (ws?.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'setLang', sourceLang: lang }))
+    ws.send(JSON.stringify({ type: 'setLang', sourceLang, targetLang }))
   }
 })
 

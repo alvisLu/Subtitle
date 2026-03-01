@@ -603,7 +603,7 @@ export default function App() {
                   value={sourceLang}
                   onValueChange={(val) => {
                     setSourceLang(val)
-                    if (recording) window.electron?.setLang(val)
+                    if (recording) window.electron?.setLang(val, targetLang)
                   }}
                   disabled={recording}
                 >
@@ -621,7 +621,10 @@ export default function App() {
                 <span className="text-muted-foreground text-sm">→</span>
                 <Select
                   value={targetLang}
-                  onValueChange={setTargetLang}
+                  onValueChange={(val) => {
+                    setTargetLang(val)
+                    if (recording) window.electron?.setLang(sourceLang, val)
+                  }}
                   disabled={recording}
                 >
                   <SelectTrigger className="w-32">

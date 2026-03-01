@@ -11,7 +11,8 @@ contextBridge.exposeInMainWorld('electron', {
 
   stopSession: () => ipcRenderer.send('session:stop'),
 
-  setLang: (lang: string) => ipcRenderer.send('session:setLang', lang),
+  setLang: (sourceLang: string, targetLang: string) =>
+    ipcRenderer.send('session:setLang', sourceLang, targetLang),
 
   setMode: (mode: 'transcript' | 'translate') =>
     ipcRenderer.send('session:setMode', mode),
@@ -20,7 +21,12 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.send('audio:chunk', buffer, channel, isFinal, id),
 
   onTranscript: (
-    cb: (data: { channel: string; id: string; text: string; final: boolean }) => void,
+    cb: (data: {
+      channel: string
+      id: string
+      text: string
+      final: boolean
+    }) => void,
   ) => ipcRenderer.on('transcript', (_e, data) => cb(data)),
 
   onStatus: (cb: (state: string) => void) =>
@@ -34,7 +40,12 @@ contextBridge.exposeInMainWorld('electron', {
   ) => ipcRenderer.on('denoised-audio', (_e, data) => cb(data)),
 
   onTranslation: (
-    cb: (data: { channel: string; id: string; text: string; final: boolean }) => void,
+    cb: (data: {
+      channel: string
+      id: string
+      text: string
+      final: boolean
+    }) => void,
   ) => ipcRenderer.on('translation', (_e, data) => cb(data)),
 
   getDesktopCapturerSources: () =>

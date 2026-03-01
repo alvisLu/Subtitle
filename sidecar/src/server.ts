@@ -1,5 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws'
-import { loadModel, transcribe, translate, STT_BASE_CONFIG } from './stt.ts'
+import { loadModel, transcribe, STT_BASE_CONFIG } from './stt.ts'
+import * as deepl from 'deepl-node'
+import { translateText } from './deepl.ts'
 import {
   denoiseAudio,
   parseAudioFrame,
@@ -34,6 +36,7 @@ interface ChannelState {
 interface Session {
   ws: WebSocket
   sourceLang: string
+  targetLang: deepl.TargetLanguageCode
   sampleRate: number
   mode: Mode
   running: boolean
@@ -61,6 +64,7 @@ function handleControl(session: Session, raw: string) {
   let msg: {
     type: string
     sourceLang?: string
+    targetLang?: deepl.TargetLanguageCode
     sampleRate?: number
     mode?: Mode
   }
@@ -71,7 +75,9 @@ function handleControl(session: Session, raw: string) {
   }
 
   if (msg.type === 'start') {
+    console.log(JSON.stringify(msg))
     session.sourceLang = msg.sourceLang ?? DEFAULT_LANG
+    session.targetLang = msg.targetLang ?? 'en-US'
     session.sampleRate = msg.sampleRate ?? INCOMING_SAMPLE_RATE
     session.mode = msg.mode ?? 'transcript'
     session.running = true
@@ -81,11 +87,14 @@ function handleControl(session: Session, raw: string) {
       config: { language: session.sourceLang, ...STT_BASE_CONFIG },
     })
     console.log(
-      `[Server] Started — lang: ${session.sourceLang}, mode: ${session.mode}`,
+      `[Server] Started — lang: ${session.sourceLang} → ${session.targetLang}, mode: ${session.mode}`,
     )
   } else if (msg.type === 'setLang') {
     session.sourceLang = msg.sourceLang ?? session.sourceLang
-    console.log(`[Server] Language changed to: ${session.sourceLang}`)
+    session.targetLang = msg.targetLang ?? session.targetLang
+    console.log(
+      `[Server] Language changed to: ${session.sourceLang} → ${session.targetLang}`,
+    )
   } else if (msg.type === 'setMode') {
     session.mode = msg.mode ?? session.mode
     console.log(`[Server] Mode changed to: ${session.mode}`)
@@ -130,12 +139,12 @@ async function transcribeInterim(
   const denoised = denoiseAudio(pcm, session.sampleRate)
   try {
     if (session.mode === 'translate') {
-      const { original, translated } = await translate(
+      const original = await transcribe(
         denoised,
         session.sampleRate,
         session.sourceLang,
       )
-      if (original)
+      if (original) {
         send(session.ws, {
           type: 'transcript',
           channel,
@@ -143,14 +152,16 @@ async function transcribeInterim(
           text: original,
           final: false,
         })
-      if (translated)
-        send(session.ws, {
-          type: 'translation',
-          channel,
-          id,
-          text: translated,
-          final: false,
-        })
+        const translated = await translateText(original, session.targetLang)
+        if (translated)
+          send(session.ws, {
+            type: 'translation',
+            channel,
+            id,
+            text: translated,
+            final: false,
+          })
+      }
     } else {
       const text = await transcribe(
         denoised,
@@ -158,7 +169,13 @@ async function transcribeInterim(
         session.sourceLang,
       )
       if (text)
-        send(session.ws, { type: 'transcript', channel, id, text, final: false })
+        send(session.ws, {
+          type: 'transcript',
+          channel,
+          id,
+          text,
+          final: false,
+        })
     }
   } catch {
     // ignore interim errors silently
@@ -191,7 +208,7 @@ async function transcribeSegment(
 
   try {
     if (session.mode === 'translate') {
-      const { original, translated } = await translate(
+      const original = await transcribe(
         denoised,
         session.sampleRate,
         session.sourceLang,
@@ -204,15 +221,15 @@ async function transcribeSegment(
           text: original,
           final: true,
         })
-      }
-      if (translated) {
-        send(session.ws, {
-          type: 'translation',
-          channel,
-          id,
-          text: translated,
-          final: true,
-        })
+        const translated = await translateText(original, session.targetLang)
+        if (translated)
+          send(session.ws, {
+            type: 'translation',
+            channel,
+            id,
+            text: translated,
+            final: true,
+          })
       }
     } else {
       const text = await transcribe(
@@ -236,6 +253,7 @@ async function transcribeSegment(
 function handleAudio(session: Session, data: Buffer) {
   if (!session.running) return
 
+  console.log(session)
   const { isFinal, channel, id, pcm } = parseAudioFrame(data)
   const ch = session.channels[channel]
   ch.currentId = id
@@ -287,6 +305,7 @@ async function main() {
     const session: Session = {
       ws,
       sourceLang: DEFAULT_LANG,
+      targetLang: 'en-US',
       sampleRate: INCOMING_SAMPLE_RATE,
       mode: 'transcript',
       running: false,
