@@ -565,11 +565,6 @@ export default function App() {
           {String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0')}:
           {String(elapsed % 60).padStart(2, '0')}
         </p>
-
-        {/* 
-        <Badge variant={recording ? 'default' : 'secondary'}>
-          {recording ? 'Recording' : 'Idle'}
-        </Badge> */}
       </div>
 
       <div className="h-full flex items-start justify-center p-8 overflow-y-auto">

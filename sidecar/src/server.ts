@@ -81,7 +81,6 @@ function handleControl(session: Session, raw: string) {
     session.sampleRate = msg.sampleRate ?? INCOMING_SAMPLE_RATE
     session.mode = msg.mode ?? 'transcript'
     session.running = true
-    send(session.ws, { type: 'status', state: 'listening' })
     send(session.ws, {
       type: 'config',
       config: { language: session.sourceLang, ...STT_BASE_CONFIG },
@@ -91,7 +90,6 @@ function handleControl(session: Session, raw: string) {
     )
   } else if (msg.type === 'stop') {
     session.running = false
-    send(session.ws, { type: 'status', state: 'idle' })
     console.log('[Server] Stopped')
   }
 }
@@ -195,8 +193,6 @@ async function transcribeSegment(
     session.ws.send(buildDenoisedFrame(denoised, channel, id))
   }
 
-  send(session.ws, { type: 'status', state: 'processing' })
-
   try {
     if (session.mode === 'translate') {
       const original = await transcribe(
@@ -236,9 +232,6 @@ async function transcribeSegment(
     send(session.ws, { type: 'error', message: String(err) })
   }
 
-  if (session.running) {
-    send(session.ws, { type: 'status', state: 'listening' })
-  }
 }
 
 function handleAudio(session: Session, data: Buffer) {
@@ -305,8 +298,6 @@ async function main() {
         loopback: makeChannelState(),
       },
     }
-
-    send(ws, { type: 'status', state: 'idle' })
 
     ws.on('message', (data, isBinary) => {
       if (isBinary) {

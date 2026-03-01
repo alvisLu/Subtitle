@@ -23,9 +23,6 @@ contextBridge.exposeInMainWorld('electron', {
     }) => void,
   ) => ipcRenderer.on('transcript', (_e, data) => cb(data)),
 
-  onStatus: (cb: (state: string) => void) =>
-    ipcRenderer.on('status', (_e, state) => cb(state)),
-
   onSttConfig: (cb: (config: Record<string, unknown>) => void) =>
     ipcRenderer.on('stt-config', (_e, config) => cb(config)),
 

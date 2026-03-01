@@ -68,8 +68,6 @@ function attachSidecarHandlers(sock: WebSocket) {
           text: msg.text,
           final: msg.final,
         })
-      } else if (msg.type === 'status') {
-        win.webContents.send('status', msg.state)
       } else if (msg.type === 'config') {
         win.webContents.send('stt-config', msg.config)
       } else if (msg.type === 'error') {

@@ -11,7 +11,6 @@ interface ElectronAPI {
   onTranscript(
     cb: (data: { channel: string; id: string; text: string; final: boolean }) => void,
   ): void
-  onStatus(cb: (state: string) => void): void
   onSttConfig(cb: (config: Record<string, unknown>) => void): void
   onDenoisedAudio(
     cb: (data: { channel: string; id: string; buffer: ArrayBuffer }) => void,
