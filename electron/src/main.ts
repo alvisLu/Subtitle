@@ -35,18 +35,19 @@ function attachSidecarHandlers(sock: WebSocket) {
   sock.on('message', (data, isBinary) => {
     if (!win) return
 
-    // Binary frame: denoised audio [0xDA][Float32Array bytes]
+    // Binary frame: denoised audio [0xDA][channel][id: uint32LE][Float32Array bytes]
     if (isBinary) {
       const buf = data as Buffer
       if (buf[0] === 0xda) {
         const channel = buf[1] === 0 ? 'mic' : 'loopback'
-        const pcmBuf = buf.subarray(2)
+        const id = buf.readUInt32LE(2)
+        const pcmBuf = buf.subarray(6)
         // Copy into a clean ArrayBuffer so IPC can transfer it
         const ab = pcmBuf.buffer.slice(
           pcmBuf.byteOffset,
           pcmBuf.byteOffset + pcmBuf.byteLength,
         )
-        win.webContents.send('denoised-audio', { channel, buffer: ab })
+        win.webContents.send('denoised-audio', { channel, id, buffer: ab })
       }
       return
     }
@@ -56,12 +57,14 @@ function attachSidecarHandlers(sock: WebSocket) {
       if (msg.type === 'transcript') {
         win.webContents.send('transcript', {
           channel: msg.channel,
+          id: msg.id,
           text: msg.text,
           final: msg.final,
         })
       } else if (msg.type === 'translation') {
         win.webContents.send('translation', {
           channel: msg.channel,
+          id: msg.id,
           text: msg.text,
           final: msg.final,
         })
@@ -160,16 +163,17 @@ ipcMain.handle('desktop-capturer:getSources', async () => {
   return sources.map((s) => ({ id: s.id, name: s.name }))
 })
 
-// IPC: audio chunks from Renderer → prepend [isFinal][channel] → forward to sidecar
+// IPC: audio chunks from Renderer → prepend [isFinal][channel][id: uint32LE] → forward to sidecar
 ipcMain.on(
   'audio:chunk',
-  (_e, buffer: ArrayBuffer, channel: 0 | 1, isFinal: boolean) => {
+  (_e, buffer: ArrayBuffer, channel: 0 | 1, isFinal: boolean, id: number) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return
     const pcmBytes = new Uint8Array(buffer)
-    const frame = new Uint8Array(2 + pcmBytes.byteLength)
+    const frame = new Uint8Array(6 + pcmBytes.byteLength)
     frame[0] = isFinal ? 1 : 0
     frame[1] = channel
-    frame.set(pcmBytes, 2)
+    new DataView(frame.buffer).setUint32(2, id, true)
+    frame.set(pcmBytes, 6)
     ws.send(frame)
   },
 )

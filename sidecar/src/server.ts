@@ -27,6 +27,8 @@ interface ChannelState {
   streamBuffer: Float32Array[]
   interimTimer: ReturnType<typeof setTimeout> | null
   pendingFinal: Float32Array | null
+  pendingFinalId: number
+  currentId: number
 }
 
 interface Session {
@@ -44,6 +46,8 @@ function makeChannelState(): ChannelState {
     streamBuffer: [],
     interimTimer: null,
     pendingFinal: null,
+    pendingFinalId: 0,
+    currentId: 0,
   }
 }
 
@@ -107,9 +111,10 @@ function runPendingFinal(session: Session, channel: Channel) {
   const ch = session.channels[channel]
   if (!ch.pendingFinal) return
   const pcm = ch.pendingFinal
+  const id = ch.pendingFinalId
   ch.pendingFinal = null
   ch.processing = true
-  transcribeSegment(session, pcm, channel).finally(() => {
+  transcribeSegment(session, pcm, channel, id).finally(() => {
     ch.processing = false
   })
 }
@@ -118,6 +123,7 @@ async function transcribeInterim(
   session: Session,
   pcm: Float32Array,
   channel: Channel,
+  id: number,
 ) {
   // Skip near-silent interim frames (Float32 RMS < 0.01 ≈ inaudible)
   if (rms(pcm) < 0.01) return
@@ -133,6 +139,7 @@ async function transcribeInterim(
         send(session.ws, {
           type: 'transcript',
           channel,
+          id,
           text: original,
           final: false,
         })
@@ -140,6 +147,7 @@ async function transcribeInterim(
         send(session.ws, {
           type: 'translation',
           channel,
+          id,
           text: translated,
           final: false,
         })
@@ -150,7 +158,7 @@ async function transcribeInterim(
         session.sourceLang,
       )
       if (text)
-        send(session.ws, { type: 'transcript', channel, text, final: false })
+        send(session.ws, { type: 'transcript', channel, id, text, final: false })
     }
   } catch {
     // ignore interim errors silently
@@ -161,6 +169,7 @@ async function transcribeSegment(
   session: Session,
   pcm: Float32Array,
   channel: Channel,
+  id: number,
 ) {
   // Skip silent audio as a safety net (VAD should have already filtered silence)
   const segmentRms = rms(pcm)
@@ -173,9 +182,9 @@ async function transcribeSegment(
 
   const denoised = denoiseAudio(pcm, session.sampleRate)
 
-  // Send denoised PCM back to Electron as binary frame: [0xDA][Float32Array bytes]
+  // Send denoised PCM back to Electron as binary frame: [0xDA][channel][id][Float32Array bytes]
   if (session.ws.readyState === session.ws.OPEN) {
-    session.ws.send(buildDenoisedFrame(denoised, channel))
+    session.ws.send(buildDenoisedFrame(denoised, channel, id))
   }
 
   send(session.ws, { type: 'status', state: 'processing' })
@@ -191,6 +200,7 @@ async function transcribeSegment(
         send(session.ws, {
           type: 'transcript',
           channel,
+          id,
           text: original,
           final: true,
         })
@@ -199,6 +209,7 @@ async function transcribeSegment(
         send(session.ws, {
           type: 'translation',
           channel,
+          id,
           text: translated,
           final: true,
         })
@@ -210,7 +221,7 @@ async function transcribeSegment(
         session.sourceLang,
       )
       if (text) {
-        send(session.ws, { type: 'transcript', channel, text, final: true })
+        send(session.ws, { type: 'transcript', channel, id, text, final: true })
       }
     }
   } catch (err) {
@@ -225,8 +236,9 @@ async function transcribeSegment(
 function handleAudio(session: Session, data: Buffer) {
   if (!session.running) return
 
-  const { isFinal, channel, pcm } = parseAudioFrame(data)
+  const { isFinal, channel, id, pcm } = parseAudioFrame(data)
   const ch = session.channels[channel]
+  ch.currentId = id
 
   if (!isFinal) {
     // Interim chunk: append to growing buffer, debounce Whisper run
@@ -237,7 +249,7 @@ function handleAudio(session: Session, data: Buffer) {
       if (ch.processing || ch.streamBuffer.length === 0) return
       const merged = mergeBuffer(ch.streamBuffer)
       ch.processing = true
-      transcribeInterim(session, merged, channel).finally(() => {
+      transcribeInterim(session, merged, channel, ch.currentId).finally(() => {
         ch.processing = false
         runPendingFinal(session, channel)
       })
@@ -254,10 +266,11 @@ function handleAudio(session: Session, data: Buffer) {
 
   if (ch.processing) {
     ch.pendingFinal = pcm
+    ch.pendingFinalId = id
     return
   }
   ch.processing = true
-  transcribeSegment(session, pcm, channel).finally(() => {
+  transcribeSegment(session, pcm, channel, id).finally(() => {
     ch.processing = false
   })
 }

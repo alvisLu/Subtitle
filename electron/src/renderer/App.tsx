@@ -94,16 +94,12 @@ export default function App() {
   const streamingFramesRef = useRef<Float32Array[]>([])
   const isSpeakingRef = useRef(false)
 
-  // Per-channel FIFO counters — each channel has independent ID space
+  // Per-channel segment ID counters
   const nextMicSegIdRef = useRef(0)
-  const nextMicTranscriptIdRef = useRef(0)
-  const nextMicTranslationIdRef = useRef(0)
-  const nextMicDenoisedIdRef = useRef(0)
+  const currentMicSegIdRef = useRef(0)
 
   const nextSysSegIdRef = useRef(0)
-  const nextSysTranscriptIdRef = useRef(0)
-  const nextSysTranslationIdRef = useRef(0)
-  const nextSysDenoisedIdRef = useRef(0)
+  const currentSysSegIdRef = useRef(0)
 
   // System VAD
   const sysVadRef = useRef<MicVAD | null>(null)
@@ -142,14 +138,13 @@ export default function App() {
 
   useEffect(() => {
     if (!window.electron) return
-    window.electron.onTranscript(({ channel, text, final }) => {
+    window.electron.onTranscript(({ channel, id, text, final }) => {
       if (channel === 'loopback') {
         if (final) {
-          const segId = nextSysTranscriptIdRef.current++
           setSysSegments((prev) =>
-            prev.map((s) => {
-              return s.id === segId ? { ...s, text, timestamp: new Date() } : s
-            }),
+            prev.map((s) =>
+              s.id === id ? { ...s, text, timestamp: new Date() } : s,
+            ),
           )
           setSysTranscriptInterim('')
         } else {
@@ -157,10 +152,9 @@ export default function App() {
         }
       } else {
         if (final) {
-          const segId = nextMicTranscriptIdRef.current++
           setMicSegments((prev) =>
             prev.map((s) =>
-              s.id === segId ? { ...s, text, timestamp: new Date() } : s,
+              s.id === id ? { ...s, text, timestamp: new Date() } : s,
             ),
           )
           setMicTranscriptInterim('')
@@ -169,22 +163,20 @@ export default function App() {
         }
       }
     })
-    window.electron.onTranslation(({ channel, text, final }) => {
+    window.electron.onTranslation(({ channel, id, text, final }) => {
       if (channel === 'loopback') {
         if (final) {
           setSysTranslationInterim('')
-          const segId = nextSysTranslationIdRef.current++
           setSysSegments((prev) =>
-            prev.map((s) => (s.id === segId ? { ...s, translation: text } : s)),
+            prev.map((s) => (s.id === id ? { ...s, translation: text } : s)),
           )
         } else {
           setSysTranslationInterim(text)
         }
       } else {
         if (final) {
-          const segId = nextMicTranslationIdRef.current++
           setMicSegments((prev) =>
-            prev.map((s) => (s.id === segId ? { ...s, translation: text } : s)),
+            prev.map((s) => (s.id === id ? { ...s, translation: text } : s)),
           )
           setMicTranslationInterim('')
         } else {
@@ -195,13 +187,12 @@ export default function App() {
     window.electron.onSttConfig((config) => {
       console.log('[STT] STT_BASE_CONFIG', config)
     })
-    window.electron.onDenoisedAudio(({ channel, buffer }) => {
+    window.electron.onDenoisedAudio(({ channel, id, buffer }) => {
       const audio = new Float32Array(buffer)
       if (channel === 'loopback') {
-        const segId = nextSysDenoisedIdRef.current++
         setSysSegments((prev) =>
           prev.map((s) =>
-            s.id === segId
+            s.id === id
               ? {
                   ...s,
                   denoisedAudio: {
@@ -213,10 +204,9 @@ export default function App() {
           ),
         )
       } else {
-        const segId = nextMicDenoisedIdRef.current++
         setMicSegments((prev) =>
           prev.map((s) =>
-            s.id === segId
+            s.id === id
               ? {
                   ...s,
                   denoisedAudio: {
@@ -293,6 +283,8 @@ export default function App() {
       baseAssetPath: '/',
       onnxWASMBasePath: '/',
       model: 'v5',
+      redemptionMs: 400,
+      // negativeSpeechThreshold: 0.15,
       getStream: () =>
         navigator.mediaDevices.getUserMedia({
           audio: selectedDeviceId
@@ -302,18 +294,24 @@ export default function App() {
       onSpeechStart: () => {
         isSpeakingRef.current = true
         streamingFramesRef.current = []
+        currentMicSegIdRef.current = nextMicSegIdRef.current++
         setVolume(1)
       },
       onSpeechEnd: (audio: Float32Array) => {
         isSpeakingRef.current = false
+        const segId = currentMicSegIdRef.current
         if (streamingFramesRef.current.length > 0) {
           const merged = mergeFrames(streamingFramesRef.current)
           streamingFramesRef.current = []
-          window.electron?.sendAudio(merged.buffer as ArrayBuffer, 0, false)
+          window.electron?.sendAudio(
+            merged.buffer as ArrayBuffer,
+            0,
+            false,
+            segId,
+          )
         }
-        window.electron?.sendAudio(audio.buffer as ArrayBuffer, 0, true)
+        window.electron?.sendAudio(audio.buffer as ArrayBuffer, 0, true, segId)
         setVolume(0)
-        const segId = nextMicSegIdRef.current++
         setMicSegments((prev) => [
           {
             id: segId,
@@ -344,6 +342,7 @@ export default function App() {
             mergeFrames(chunks).buffer as ArrayBuffer,
             0,
             false,
+            currentMicSegIdRef.current,
           )
         }
       },
@@ -374,11 +373,8 @@ export default function App() {
       timerRef.current = null
     }
     window.electron?.stopSession()
-    // Reset mic counters so next session correlates correctly
     nextMicSegIdRef.current = 0
-    nextMicTranscriptIdRef.current = 0
-    nextMicTranslationIdRef.current = 0
-    nextMicDenoisedIdRef.current = 0
+    currentMicSegIdRef.current = 0
   }, [])
 
   const startSysAudio = useCallback(async () => {
@@ -390,8 +386,9 @@ export default function App() {
       baseAssetPath: '/',
       onnxWASMBasePath: '/',
       model: 'v5',
+      redemptionMs: 600,
+      // negativeSpeechThreshold: 0.15,
       getStream: async () => {
-        console.log('speeching')
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             mandatory: {
@@ -410,18 +407,24 @@ export default function App() {
       onSpeechStart: () => {
         isSysSpeakingRef.current = true
         sysStreamingFramesRef.current = []
+        currentSysSegIdRef.current = nextSysSegIdRef.current++
         setSysVolume(1)
       },
       onSpeechEnd: (audio: Float32Array) => {
         isSysSpeakingRef.current = false
+        const segId = currentSysSegIdRef.current
         if (sysStreamingFramesRef.current.length > 0) {
           const merged = mergeFrames(sysStreamingFramesRef.current)
           sysStreamingFramesRef.current = []
-          window.electron?.sendAudio(merged.buffer as ArrayBuffer, 1, false)
+          window.electron?.sendAudio(
+            merged.buffer as ArrayBuffer,
+            1,
+            false,
+            segId,
+          )
         }
-        window.electron?.sendAudio(audio.buffer as ArrayBuffer, 1, true)
+        window.electron?.sendAudio(audio.buffer as ArrayBuffer, 1, true, segId)
         setSysVolume(0)
-        const segId = nextSysSegIdRef.current++
         setSysSegments((prev) => [
           {
             id: segId,
@@ -455,6 +458,7 @@ export default function App() {
             mergeFrames(chunks).buffer as ArrayBuffer,
             1,
             false,
+            currentSysSegIdRef.current,
           )
         }
       },
@@ -482,11 +486,8 @@ export default function App() {
     isSysSpeakingRef.current = false
     setSystemCapture(false)
     setSysVolume(0)
-    // Reset sys counters so next session correlates correctly
     nextSysSegIdRef.current = 0
-    nextSysTranscriptIdRef.current = 0
-    nextSysTranslationIdRef.current = 0
-    nextSysDenoisedIdRef.current = 0
+    currentSysSegIdRef.current = 0
   }, [])
 
   return (
