@@ -231,7 +231,6 @@ async function transcribeSegment(
   } catch (err) {
     send(session.ws, { type: 'error', message: String(err) })
   }
-
 }
 
 function handleAudio(session: Session, data: Buffer) {

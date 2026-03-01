@@ -21,16 +21,18 @@ const SAMPLE_RATE = 16000
 // Silero v5: 512 samples/frame @ 16kHz = 32ms; 16 frames = 512ms ≈ 0.5s
 const STREAMING_FRAMES = 16
 
-const LANGUAGES = [
+type Mode = 'transcript' | 'translate'
+type TargetLang = 'en-US' | 'zh-HANT'
+type SourceLang = 'en' | 'zh'
+
+const SOURCE_LANGUAGES: { code: SourceLang; label: string }[] = [
   { code: 'zh', label: '中文' },
   { code: 'en', label: 'English' },
-  // { code: 'ja', label: '日本語' },
-  // { code: 'ko', label: '한국어' },
-  // { code: 'fr', label: 'Français' },
-  // { code: 'de', label: 'Deutsch' },
 ]
-
-type Mode = 'transcript' | 'translate'
+const TARGET_LANGUAGES: { code: TargetLang; label: string }[] = [
+  { code: 'zh-HANT', label: '中文' },
+  { code: 'en-US', label: 'English' },
+]
 
 function getOrCreateAudioCtx(audioCtxRef: { current: AudioContext | null }) {
   if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
@@ -83,9 +85,9 @@ export default function App() {
   const [sysTranscriptInterim, setSysTranscriptInterim] = useState('')
   const [sysTranslationInterim, setSysTranslationInterim] = useState('')
 
-  const [mode, setMode] = useState<Mode>('transcript')
-  const [sourceLang, setSourceLang] = useState('en')
-  const [targetLang, setTargetLang] = useState('zh')
+  const [mode, setMode] = useState<Mode>('translate')
+  const [sourceLang, setSourceLang] = useState<SourceLang>('en')
+  const [targetLang, setTargetLang] = useState<TargetLang>('zh-HANT')
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('')
   const [systemCapture, setSystemCapture] = useState(false)
@@ -593,14 +595,14 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <Select
                   value={sourceLang}
-                  onValueChange={setSourceLang}
+                  onValueChange={(v) => setSourceLang(v as SourceLang)}
                   disabled={recording}
                 >
                   <SelectTrigger className="w-32">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {LANGUAGES.map((lang) => (
+                    {SOURCE_LANGUAGES.map((lang) => (
                       <SelectItem key={lang.code} value={lang.code}>
                         {lang.label}
                       </SelectItem>
@@ -610,14 +612,14 @@ export default function App() {
                 <span className="text-muted-foreground text-sm">→</span>
                 <Select
                   value={targetLang}
-                  onValueChange={setTargetLang}
+                  onValueChange={(v) => setTargetLang(v as TargetLang)}
                   disabled={recording}
                 >
                   <SelectTrigger className="w-32">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {LANGUAGES.map((lang) => (
+                    {TARGET_LANGUAGES.map((lang) => (
                       <SelectItem key={lang.code} value={lang.code}>
                         {lang.label}
                       </SelectItem>
