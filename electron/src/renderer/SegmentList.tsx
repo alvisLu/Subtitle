@@ -5,7 +5,7 @@ import { Badge } from './components/ui/badge'
 export type AudioClip = { audio: Float32Array; duration: number }
 export type Channel = 'mic' | 'loopback'
 
-export type MicSegment = {
+export type Segment = {
   id: string
   timestamp: Date
   channel: Channel
@@ -16,7 +16,7 @@ export type MicSegment = {
 }
 
 type Props = {
-  segments: MicSegment[]
+  segments: Segment[]
   micInterim?: string
   micTranslationInterim?: string
   sysInterim?: string
@@ -31,7 +31,7 @@ type Props = {
   onStopDenoised: () => void
 }
 
-export function MicSegmentList({
+export function SegmentList({
   segments,
   micInterim,
   micTranslationInterim,

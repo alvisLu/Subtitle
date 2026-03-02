@@ -12,8 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { MicSegmentList } from './MicSegmentList'
-import type { MicSegment } from './MicSegmentList'
+import { SegmentList } from './MicSegmentList'
+import type { Segment } from './MicSegmentList'
 import { Progress } from './components/ui/progress'
 import { Separator } from './components/ui/separator'
 
@@ -72,7 +72,7 @@ export default function App() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Mic: unified segments (transcript + denoised + raw recording per utterance)
-  const [micSegments, setMicSegments] = useState<MicSegment[]>([])
+  const [micSegments, setMicSegments] = useState<Segment[]>([])
   const [micTranscriptInterim, setMicTranscriptInterim] = useState('')
   const [micTranslationInterim, setMicTranslationInterim] = useState('')
   const [playingRawSegId, setPlayingRawSegId] = useState<string | null>(null)
@@ -81,7 +81,7 @@ export default function App() {
   >(null)
 
   // System audio
-  const [sysSegments, setSysSegments] = useState<MicSegment[]>([])
+  const [sysSegments, setSysSegments] = useState<Segment[]>([])
   const [sysTranscriptInterim, setSysTranscriptInterim] = useState('')
   const [sysTranslationInterim, setSysTranslationInterim] = useState('')
 
@@ -631,7 +631,7 @@ export default function App() {
           </CardHeader>
           <Separator />
           <CardContent className="flex-1 overflow-y-auto space-y-4">
-            <MicSegmentList
+            <SegmentList
               segments={[...micSegments, ...sysSegments].sort(
                 (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),
               )}
