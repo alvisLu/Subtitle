@@ -75,7 +75,6 @@ function handleControl(session: Session, raw: string) {
   }
 
   if (msg.type === 'start') {
-    console.log(JSON.stringify(msg))
     session.sourceLang = msg.sourceLang ?? DEFAULT_LANG
     session.targetLang = msg.targetLang ?? 'en-US'
     session.sampleRate = msg.sampleRate ?? INCOMING_SAMPLE_RATE
@@ -132,6 +131,7 @@ async function transcribeInterim(
         denoised,
         session.sampleRate,
         session.sourceLang,
+        id,
       )
       if (original) {
         send(session.ws, {
@@ -141,7 +141,7 @@ async function transcribeInterim(
           text: original,
           final: false,
         })
-        const translated = await translateText(original, session.targetLang)
+        const translated = await translateText(original, session.targetLang, id)
         if (translated)
           send(session.ws, {
             type: 'translation',
@@ -156,6 +156,7 @@ async function transcribeInterim(
         denoised,
         session.sampleRate,
         session.sourceLang,
+        id,
       )
       if (text)
         send(session.ws, {
@@ -199,6 +200,7 @@ async function transcribeSegment(
         denoised,
         session.sampleRate,
         session.sourceLang,
+        id,
       )
       if (original) {
         send(session.ws, {
@@ -208,7 +210,7 @@ async function transcribeSegment(
           text: original,
           final: true,
         })
-        const translated = await translateText(original, session.targetLang)
+        const translated = await translateText(original, session.targetLang, id)
         if (translated)
           send(session.ws, {
             type: 'translation',
@@ -223,6 +225,7 @@ async function transcribeSegment(
         denoised,
         session.sampleRate,
         session.sourceLang,
+        id,
       )
       if (text) {
         send(session.ws, { type: 'transcript', channel, id, text, final: true })
@@ -236,7 +239,6 @@ async function transcribeSegment(
 function handleAudio(session: Session, data: Buffer) {
   if (!session.running) return
 
-  console.log(session)
   const { isFinal, channel, id, pcm } = parseAudioFrame(data)
   const ch = session.channels[channel]
   ch.currentId = id

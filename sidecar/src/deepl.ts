@@ -14,12 +14,12 @@ function getTranslator(): deepl.Translator {
 export async function translateText(
   text: string,
   targetLang: deepl.TargetLanguageCode,
+  id: string,
 ): Promise<string> {
   if (!text.trim()) return ''
-  console.log(targetLang)
   const t = Date.now()
   const result = await getTranslator().translateText(text, null, targetLang)
   const translated = Array.isArray(result) ? result[0].text : result.text
-  console.log(`[DeepL] ${Date.now() - t}ms → "${translated}"`)
+  console.log(`[DeepL] [${id}] ${Date.now() - t}ms → "${translated}"`)
   return translated
 }

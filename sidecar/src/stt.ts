@@ -71,6 +71,7 @@ export async function transcribe(
   audio: Float32Array,
   sampleRate: number,
   language = 'zh',
+  id: string,
 ): Promise<string> {
   if (!transcriber) throw new Error('[STT] Call loadModel() first')
 
@@ -85,7 +86,7 @@ export async function transcribe(
       : result.text
   ).trim()
 
-  console.log(`[STT] ${Date.now() - t}ms → "${text}"`)
+  console.log(`[STT] [${id}] ${Date.now() - t}ms → "${text}"`)
   return text
 }
 
