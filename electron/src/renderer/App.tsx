@@ -12,8 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { SegmentList } from './MicSegmentList'
-import type { Segment } from './MicSegmentList'
+import { SegmentList } from './SegmentList'
+import type { Segment } from './SegmentList'
 import { Progress } from './components/ui/progress'
 import { Separator } from './components/ui/separator'
 
