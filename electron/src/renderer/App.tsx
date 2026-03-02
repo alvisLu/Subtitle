@@ -73,8 +73,7 @@ export default function App() {
 
   // Mic: unified segments (transcript + denoised + raw recording per utterance)
   const [micSegments, setMicSegments] = useState<Segment[]>([])
-  const [micTranscriptInterim, setMicTranscriptInterim] = useState('')
-  const [micTranslationInterim, setMicTranslationInterim] = useState('')
+  const [micInterimSegment, setMicInterimSegment] = useState<Segment | null>(null)
   const [playingRawSegId, setPlayingRawSegId] = useState<string | null>(null)
   const [playingDenoisedSegId, setPlayingDenoisedSegId] = useState<
     string | null
@@ -82,8 +81,7 @@ export default function App() {
 
   // System audio
   const [sysSegments, setSysSegments] = useState<Segment[]>([])
-  const [sysTranscriptInterim, setSysTranscriptInterim] = useState('')
-  const [sysTranslationInterim, setSysTranslationInterim] = useState('')
+  const [sysInterimSegment, setSysInterimSegment] = useState<Segment | null>(null)
 
   const [mode, setMode] = useState<Mode>('translate')
   const [sourceLang, setSourceLang] = useState<SourceLang>('en')
@@ -148,9 +146,9 @@ export default function App() {
               s.id === id ? { ...s, text, timestamp: new Date() } : s,
             ),
           )
-          setSysTranscriptInterim('')
+          setSysInterimSegment(null)
         } else {
-          setSysTranscriptInterim(text)
+          setSysInterimSegment((prev) => (prev ? { ...prev, text } : null))
         }
       } else {
         if (final) {
@@ -159,30 +157,28 @@ export default function App() {
               s.id === id ? { ...s, text, timestamp: new Date() } : s,
             ),
           )
-          setMicTranscriptInterim('')
+          setMicInterimSegment(null)
         } else {
-          setMicTranscriptInterim(text)
+          setMicInterimSegment((prev) => (prev ? { ...prev, text } : null))
         }
       }
     })
     window.electron.onTranslation(({ channel, id, text, final }) => {
       if (channel === 'loopback') {
         if (final) {
-          setSysTranslationInterim('')
           setSysSegments((prev) =>
             prev.map((s) => (s.id === id ? { ...s, translation: text } : s)),
           )
         } else {
-          setSysTranslationInterim(text)
+          setSysInterimSegment((prev) => (prev ? { ...prev, translation: text } : null))
         }
       } else {
         if (final) {
           setMicSegments((prev) =>
             prev.map((s) => (s.id === id ? { ...s, translation: text } : s)),
           )
-          setMicTranslationInterim('')
         } else {
-          setMicTranslationInterim(text)
+          setMicInterimSegment((prev) => (prev ? { ...prev, translation: text } : null))
         }
       }
     })
@@ -297,6 +293,7 @@ export default function App() {
         isSpeakingRef.current = true
         streamingFramesRef.current = []
         currentMicSegIdRef.current = nanoid()
+        setMicInterimSegment({ id: currentMicSegIdRef.current, channel: 'mic', timestamp: new Date(), text: '' })
         setVolume(1)
       },
       onSpeechEnd: (audio: Float32Array) => {
@@ -409,6 +406,7 @@ export default function App() {
         isSysSpeakingRef.current = true
         sysStreamingFramesRef.current = []
         currentSysSegIdRef.current = nanoid()
+        setSysInterimSegment({ id: currentSysSegIdRef.current, channel: 'loopback', timestamp: new Date(), text: '' })
         setSysVolume(1)
       },
       onSpeechEnd: (audio: Float32Array) => {
@@ -636,10 +634,8 @@ export default function App() {
               segments={[...micSegments, ...sysSegments].sort(
                 (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),
               )}
-              micInterim={micTranscriptInterim}
-              micTranslationInterim={micTranslationInterim}
-              sysInterim={sysTranscriptInterim}
-              sysTranslationInterim={sysTranslationInterim}
+              micInterimSegment={micInterimSegment}
+              sysInterimSegment={sysInterimSegment}
               mode={mode}
               playingRawSegId={playingRawSegId}
               playingDenoisedSegId={playingDenoisedSegId}
@@ -648,10 +644,8 @@ export default function App() {
                 stopDenoisedPlayback()
                 setMicSegments([])
                 setSysSegments([])
-                setMicTranscriptInterim('')
-                setMicTranslationInterim('')
-                setSysTranscriptInterim('')
-                setSysTranslationInterim('')
+                setMicInterimSegment(null)
+                setSysInterimSegment(null)
               }}
               onPlayRaw={playRawAudio}
               onStopRaw={stopRawPlayback}
