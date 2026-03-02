@@ -114,6 +114,7 @@ export default function App() {
   const audioCtxRef = useRef<AudioContext | null>(null)
 
   useEffect(() => {
+    console.log(sysSegments)
     let cancelled = false
     async function refreshAudioDevices() {
       const all = await navigator.mediaDevices.enumerateDevices()

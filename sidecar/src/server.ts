@@ -10,16 +10,18 @@ import {
 } from './dsp.ts'
 
 /*
- * How to test:
+ * Connection test:
  * wscat -c ws://localhost:8765
- * # After connecting, send：
- * {"type":"start","sourceLang":"zh","sampleRate":16000}
+ *
+ * send {"type":"ping"} → receive {"type":"pong"}
  */
 
 const PORT = Number(process.env.PORT ?? 8765)
-const DEFAULT_LANG = process.env.DEFAULT_LANG ?? 'zh'
+const DEFAULT_SOURCE_LANG = 'zh'
+const DEFAULT_TARGET_LANG = 'en-US'
+const DEFAULT_MODE = 'transcript'
 // Fallback sample rate if client does not send sampleRate in start message
-const INCOMING_SAMPLE_RATE = Number(process.env.INCOMING_SAMPLE_RATE ?? 48000)
+const INCOMING_SAMPLE_RATE = 48000
 
 type Channel = 'mic' | 'loopback'
 type Mode = 'transcript' | 'translate'
@@ -75,10 +77,10 @@ function handleControl(session: Session, raw: string) {
   }
 
   if (msg.type === 'start') {
-    session.sourceLang = msg.sourceLang ?? DEFAULT_LANG
-    session.targetLang = msg.targetLang ?? 'en-US'
+    session.sourceLang = msg.sourceLang ?? DEFAULT_SOURCE_LANG
+    session.targetLang = msg.targetLang ?? DEFAULT_TARGET_LANG
     session.sampleRate = msg.sampleRate ?? INCOMING_SAMPLE_RATE
-    session.mode = msg.mode ?? 'transcript'
+    session.mode = msg.mode ?? DEFAULT_MODE
     session.running = true
     send(session.ws, {
       type: 'config',
@@ -90,6 +92,8 @@ function handleControl(session: Session, raw: string) {
   } else if (msg.type === 'stop') {
     session.running = false
     console.log('[Server] Stopped')
+  } else if (msg.type === 'ping') {
+    send(session.ws, { type: 'pong' })
   }
 }
 
@@ -289,10 +293,10 @@ async function main() {
 
     const session: Session = {
       ws,
-      sourceLang: DEFAULT_LANG,
-      targetLang: 'en-US',
+      sourceLang: DEFAULT_SOURCE_LANG,
+      targetLang: DEFAULT_TARGET_LANG,
       sampleRate: INCOMING_SAMPLE_RATE,
-      mode: 'transcript',
+      mode: DEFAULT_MODE,
       running: false,
       channels: {
         mic: makeChannelState(),
