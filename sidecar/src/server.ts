@@ -30,8 +30,7 @@ interface ChannelState {
   processing: boolean
   streamBuffer: Float32Array[]
   interimTimer: ReturnType<typeof setTimeout> | null
-  pendingFinal: Float32Array | null
-  pendingFinalId: string
+  pendingFinals: Array<{ pcm: Float32Array; id: string }>
   currentId: string
 }
 
@@ -50,8 +49,7 @@ function makeChannelState(): ChannelState {
     processing: false,
     streamBuffer: [],
     interimTimer: null,
-    pendingFinal: null,
-    pendingFinalId: '',
+    pendingFinals: [],
     currentId: '',
   }
 }
@@ -110,13 +108,12 @@ function mergeBuffer(chunks: Float32Array[]): Float32Array {
 
 function runPendingFinal(session: Session, channel: Channel) {
   const ch = session.channels[channel]
-  if (!ch.pendingFinal) return
-  const pcm = ch.pendingFinal
-  const id = ch.pendingFinalId
-  ch.pendingFinal = null
+  const next = ch.pendingFinals.shift()
+  if (!next) return
   ch.processing = true
-  transcribeSegment(session, pcm, channel, id).finally(() => {
+  transcribeSegment(session, next.pcm, channel, next.id).finally(() => {
     ch.processing = false
+    runPendingFinal(session, channel)
   })
 }
 
@@ -248,7 +245,7 @@ function handleAudio(session: Session, data: Buffer) {
   ch.currentId = id
 
   if (!isFinal) {
-    // Interim chunk: append to growing buffer, debounce Whisper run
+    // Interim chunk:idppend to growing buffer, debounce Whisper run
     ch.streamBuffer.push(pcm)
     if (ch.interimTimer) clearTimeout(ch.interimTimer)
     ch.interimTimer = setTimeout(() => {
@@ -272,8 +269,7 @@ function handleAudio(session: Session, data: Buffer) {
   ch.streamBuffer = []
 
   if (ch.processing) {
-    ch.pendingFinal = pcm
-    ch.pendingFinalId = id
+    ch.pendingFinals.push({ pcm, id })
     return
   }
   ch.processing = true
@@ -283,7 +279,9 @@ function handleAudio(session: Session, data: Buffer) {
 }
 
 async function main() {
-  await loadModel('small')
+  // await loadModel('small')
+  // await loadModel('base')
+  await loadModel('tiny')
 
   const wss = new WebSocketServer({ port: PORT })
   console.log(`[Server] WebSocket listening on ws://localhost:${PORT}`)
