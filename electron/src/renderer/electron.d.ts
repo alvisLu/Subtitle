@@ -7,16 +7,31 @@ interface ElectronAPI {
     mode: 'transcript' | 'translate'
   }): void
   stopSession(): void
-  sendAudio(buffer: ArrayBuffer, channel: 0 | 1, isFinal?: boolean, id?: string): void
+  sendAudio(
+    buffer: ArrayBuffer,
+    channel: 0 | 1,
+    isFinal?: boolean,
+    id?: string,
+  ): void
   onTranscript(
-    cb: (data: { channel: string; id: string; text: string; final: boolean }) => void,
+    cb: (data: {
+      channel: string
+      id: string
+      text: string
+      final: boolean
+    }) => void,
   ): void
   onSttConfig(cb: (config: Record<string, unknown>) => void): void
   onDenoisedAudio(
     cb: (data: { channel: string; id: string; buffer: ArrayBuffer }) => void,
   ): void
   onTranslation(
-    cb: (data: { channel: string; id: string; text: string; final: boolean }) => void,
+    cb: (data: {
+      channel: string
+      id: string
+      text: string
+      final: boolean
+    }) => void,
   ): void
   getDesktopCapturerSources(): Promise<{ id: string; name: string }[]>
   removeAllListeners(channel: string): void
