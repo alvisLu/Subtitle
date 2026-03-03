@@ -151,9 +151,11 @@ export default function App() {
               s.id === id ? { ...s, text, timestamp: new Date() } : s,
             ),
           )
-          setSysInterimSegment(null)
+          setSysInterimSegment((prev) => (prev?.id === id ? null : prev))
         } else {
-          setSysInterimSegment((prev) => (prev ? { ...prev, text } : null))
+          setSysInterimSegment((prev) =>
+            prev?.id === id ? { ...prev, text } : prev,
+          )
         }
       } else {
         if (final) {
@@ -162,9 +164,11 @@ export default function App() {
               s.id === id ? { ...s, text, timestamp: new Date() } : s,
             ),
           )
-          setMicInterimSegment(null)
+          setMicInterimSegment((prev) => (prev?.id === id ? null : prev))
         } else {
-          setMicInterimSegment((prev) => (prev ? { ...prev, text } : null))
+          setMicInterimSegment((prev) =>
+            prev?.id === id ? { ...prev, text } : prev,
+          )
         }
       }
     })
@@ -176,7 +180,7 @@ export default function App() {
           )
         } else {
           setSysInterimSegment((prev) =>
-            prev ? { ...prev, translation: text } : null,
+            prev?.id === id ? { ...prev, translation: text } : prev,
           )
         }
       } else {
@@ -186,7 +190,7 @@ export default function App() {
           )
         } else {
           setMicInterimSegment((prev) =>
-            prev ? { ...prev, translation: text } : null,
+            prev?.id === id ? { ...prev, translation: text } : prev,
           )
         }
       }
