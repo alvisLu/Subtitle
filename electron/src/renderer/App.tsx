@@ -67,7 +67,7 @@ function playAudio(
 
 export default function App() {
   const [recording, setRecording] = useState(false)
-  const [volume, setVolume] = useState(0)
+  const [micVolume, setMicVolume] = useState(0)
   const [elapsed, setElapsed] = useState(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -308,7 +308,7 @@ export default function App() {
           timestamp: new Date(),
           text: '',
         })
-        setVolume(1)
+        setMicVolume(1)
       },
       onSpeechEnd: (audio: Float32Array) => {
         isSpeakingRef.current = false
@@ -324,7 +324,7 @@ export default function App() {
           )
         }
         window.electron?.sendAudio(audio.buffer as ArrayBuffer, 0, true, segId)
-        setVolume(0)
+        setMicVolume(0)
         setMicSegments((prev) => [
           {
             id: segId,
@@ -342,11 +342,11 @@ export default function App() {
       onVADMisfire: () => {
         isSpeakingRef.current = false
         streamingFramesRef.current = []
-        setVolume(0)
+        setMicVolume(0)
       },
       onFrameProcessed: (prob, frame) => {
         if (!vadRef.current?.listening) return
-        setVolume(prob.isSpeech)
+        setMicVolume(prob.isSpeech)
         if (!isSpeakingRef.current) return
         streamingFramesRef.current.push(new Float32Array(frame))
         if (streamingFramesRef.current.length >= STREAMING_FRAMES) {
@@ -372,7 +372,7 @@ export default function App() {
     vadRef.current = null
     streamingFramesRef.current = []
     isSpeakingRef.current = false
-    setVolume(0)
+    setMicVolume(0)
     if (timerRef.current) {
       clearInterval(timerRef.current)
       timerRef.current = null
@@ -517,14 +517,15 @@ export default function App() {
           <div className="flex flex-col gap-2">
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between select-none gap-4">
-                <div className="flex flex-row items-center gap-2 w-50">
+                <label className="flex flex-row items-center gap-2 w-50 cursor-pointer">
                   <Checkbox
                     checked={isSysCapture}
                     onCheckedChange={(checked) => setIsSysCapture(!!checked)}
+                    disabled={recording}
                   />
                   <Monitor className="w-4 text-muted-foreground" />
                   <span className="text-m">System Audio</span>
-                </div>
+                </label>
 
                 <div className="w-40">
                   {isSysCapture && <Progress value={sysVolume * 100} />}
@@ -537,14 +538,15 @@ export default function App() {
 
             <div className="flex flex-row items-center justify-between gap-4">
               <div className="w-50">
-                <div className="flex flex-row items-center gap-2 w-50">
+                <label className="flex flex-row items-center gap-2 w-50 cursor-pointer">
                   <Checkbox
                     checked={isMicCapture}
                     onCheckedChange={(checked) => setIsMicChpture(!!checked)}
+                    disabled={recording}
                   />
                   <Mic className="w-4 text-muted-foreground" />
                   <span className="text-m">Microphone</span>
-                </div>
+                </label>
                 <Select
                   value={selectedDeviceId}
                   onValueChange={setSelectedDeviceId}
@@ -564,7 +566,7 @@ export default function App() {
                 </Select>
               </div>
               <div className="w-40">
-                <Progress value={volume * 100} />
+                {isMicCapture && <Progress value={micVolume * 100} />}
               </div>
             </div>
           </div>
