@@ -98,8 +98,8 @@ export default function App() {
 
   // Mic VAD
   const vadRef = useRef<MicVAD | null>(null)
-  const streamingFramesRef = useRef<Float32Array[]>([])
-  const isSpeakingRef = useRef(false)
+  const micStreamingFramesRef = useRef<Float32Array[]>([])
+  const isMicSpeakingRef = useRef(false)
 
   // Per-channel current segment ID (nanoid)
   const currentMicSegIdRef = useRef('')
@@ -299,8 +299,8 @@ export default function App() {
             : true,
         }),
       onSpeechStart: () => {
-        isSpeakingRef.current = true
-        streamingFramesRef.current = []
+        isMicSpeakingRef.current = true
+        micStreamingFramesRef.current = []
         currentMicSegIdRef.current = nanoid()
         setMicInterimSegment({
           id: currentMicSegIdRef.current,
@@ -311,11 +311,11 @@ export default function App() {
         setMicVolume(1)
       },
       onSpeechEnd: (audio: Float32Array) => {
-        isSpeakingRef.current = false
+        isMicSpeakingRef.current = false
         const segId = currentMicSegIdRef.current
-        if (streamingFramesRef.current.length > 0) {
-          const merged = mergeFrames(streamingFramesRef.current)
-          streamingFramesRef.current = []
+        if (micStreamingFramesRef.current.length > 0) {
+          const merged = mergeFrames(micStreamingFramesRef.current)
+          micStreamingFramesRef.current = []
           window.electron?.sendAudio(
             merged.buffer as ArrayBuffer,
             0,
@@ -340,17 +340,20 @@ export default function App() {
         ])
       },
       onVADMisfire: () => {
-        isSpeakingRef.current = false
-        streamingFramesRef.current = []
+        isMicSpeakingRef.current = false
+        micStreamingFramesRef.current = []
         setMicVolume(0)
       },
       onFrameProcessed: (prob, frame) => {
         if (!vadRef.current?.listening) return
         setMicVolume(prob.isSpeech)
-        if (!isSpeakingRef.current) return
-        streamingFramesRef.current.push(new Float32Array(frame))
-        if (streamingFramesRef.current.length >= STREAMING_FRAMES) {
-          const chunks = streamingFramesRef.current.splice(0, STREAMING_FRAMES)
+        if (!isMicSpeakingRef.current) return
+        micStreamingFramesRef.current.push(new Float32Array(frame))
+        if (micStreamingFramesRef.current.length >= STREAMING_FRAMES) {
+          const chunks = micStreamingFramesRef.current.splice(
+            0,
+            STREAMING_FRAMES,
+          )
           window.electron?.sendAudio(
             mergeFrames(chunks).buffer as ArrayBuffer,
             0,
@@ -363,20 +366,14 @@ export default function App() {
 
     await myvad.start()
     vadRef.current = myvad
-    setElapsed(0)
-    timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000)
   }, [selectedDeviceId])
 
   const stopMicAudio = useCallback(async () => {
     await vadRef.current?.destroy()
     vadRef.current = null
-    streamingFramesRef.current = []
-    isSpeakingRef.current = false
+    micStreamingFramesRef.current = []
+    isMicSpeakingRef.current = false
     setMicVolume(0)
-    if (timerRef.current) {
-      clearInterval(timerRef.current)
-      timerRef.current = null
-    }
     currentMicSegIdRef.current = ''
   }, [])
 
@@ -403,7 +400,9 @@ export default function App() {
             mandatory: { chromeMediaSource: 'desktop' },
           } as unknown as MediaTrackConstraints,
         })
+        // desktopCapturer 必須同時要求 video 才能拿到系統音訊，但 VAD 只需要音訊，立即釋放 video track
         stream.getVideoTracks().forEach((t) => t.stop())
+        // 保留 stream reference，讓 stopSysAudio 能主動 stop 所有 tracks 並釋放擷取權限
         sysStreamRef.current = stream
         return stream
       },
@@ -480,8 +479,11 @@ export default function App() {
   const stopSysAudio = useCallback(async () => {
     await sysVadRef.current?.destroy()
     sysVadRef.current = null
+
+    // 主動 stop 所有 tracks，確保桌面擷取權限完全釋放（MicVAD destroy 不保證會釋放）
     sysStreamRef.current?.getTracks().forEach((t) => t.stop())
     sysStreamRef.current = null
+
     sysStreamingFramesRef.current = []
     isSysSpeakingRef.current = false
     setSysVolume(0)
@@ -497,6 +499,8 @@ export default function App() {
       mode,
     })
     setRecording(true)
+    setElapsed(0)
+    timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000)
     if (isMicCapture) await startMicAudio()
     if (isSysCapture) await startSysAudio()
   }
@@ -505,6 +509,10 @@ export default function App() {
     setRecording(false)
     if (isMicCapture) await stopMicAudio()
     if (isSysCapture) await stopSysAudio()
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
     window.electron?.stopSession()
   }
 
