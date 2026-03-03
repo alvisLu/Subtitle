@@ -73,7 +73,9 @@ export default function App() {
 
   // Mic: unified segments (transcript + denoised + raw recording per utterance)
   const [micSegments, setMicSegments] = useState<Segment[]>([])
-  const [micInterimSegment, setMicInterimSegment] = useState<Segment | null>(null)
+  const [micInterimSegment, setMicInterimSegment] = useState<Segment | null>(
+    null,
+  )
   const [playingRawSegId, setPlayingRawSegId] = useState<string | null>(null)
   const [playingDenoisedSegId, setPlayingDenoisedSegId] = useState<
     string | null
@@ -81,7 +83,9 @@ export default function App() {
 
   // System audio
   const [sysSegments, setSysSegments] = useState<Segment[]>([])
-  const [sysInterimSegment, setSysInterimSegment] = useState<Segment | null>(null)
+  const [sysInterimSegment, setSysInterimSegment] = useState<Segment | null>(
+    null,
+  )
 
   const [mode, setMode] = useState<Mode>('translate')
   const [sourceLang, setSourceLang] = useState<SourceLang>('en')
@@ -170,7 +174,9 @@ export default function App() {
             prev.map((s) => (s.id === id ? { ...s, translation: text } : s)),
           )
         } else {
-          setSysInterimSegment((prev) => (prev ? { ...prev, translation: text } : null))
+          setSysInterimSegment((prev) =>
+            prev ? { ...prev, translation: text } : null,
+          )
         }
       } else {
         if (final) {
@@ -178,7 +184,9 @@ export default function App() {
             prev.map((s) => (s.id === id ? { ...s, translation: text } : s)),
           )
         } else {
-          setMicInterimSegment((prev) => (prev ? { ...prev, translation: text } : null))
+          setMicInterimSegment((prev) =>
+            prev ? { ...prev, translation: text } : null,
+          )
         }
       }
     })
@@ -293,7 +301,12 @@ export default function App() {
         isSpeakingRef.current = true
         streamingFramesRef.current = []
         currentMicSegIdRef.current = nanoid()
-        setMicInterimSegment({ id: currentMicSegIdRef.current, channel: 'mic', timestamp: new Date(), text: '' })
+        setMicInterimSegment({
+          id: currentMicSegIdRef.current,
+          channel: 'mic',
+          timestamp: new Date(),
+          text: '',
+        })
         setVolume(1)
       },
       onSpeechEnd: (audio: Float32Array) => {
@@ -384,7 +397,7 @@ export default function App() {
       baseAssetPath: '/',
       onnxWASMBasePath: '/',
       model: 'v5',
-      redemptionMs: 600,
+      redemptionMs: 400,
       // negativeSpeechThreshold: 0.15,
       getStream: async () => {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -406,7 +419,12 @@ export default function App() {
         isSysSpeakingRef.current = true
         sysStreamingFramesRef.current = []
         currentSysSegIdRef.current = nanoid()
-        setSysInterimSegment({ id: currentSysSegIdRef.current, channel: 'loopback', timestamp: new Date(), text: '' })
+        setSysInterimSegment({
+          id: currentSysSegIdRef.current,
+          channel: 'loopback',
+          timestamp: new Date(),
+          text: '',
+        })
         setSysVolume(1)
       },
       onSpeechEnd: (audio: Float32Array) => {
