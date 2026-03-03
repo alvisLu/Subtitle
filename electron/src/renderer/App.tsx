@@ -92,7 +92,8 @@ export default function App() {
   const [targetLang, setTargetLang] = useState<TargetLang>('zh-HANT')
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('')
-  const [systemCapture, setSystemCapture] = useState(false)
+  const [isSysCapture, setIsSysCapture] = useState(false)
+  const [isMicCapture, setIsMicChpture] = useState(false)
   const [sysVolume, setSysVolume] = useState(0)
 
   // Mic VAD
@@ -362,29 +363,20 @@ export default function App() {
 
     await myvad.start()
     vadRef.current = myvad
-    setRecording(true)
     setElapsed(0)
     timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000)
-
-    window.electron?.startSession({
-      sourceLang,
-      targetLang,
-      engine: 'deepl',
-      sampleRate: 16000,
-      mode,
-    })
-  }, [sourceLang, targetLang, mode, selectedDeviceId])
+  }, [selectedDeviceId])
 
   const stopMicAudio = useCallback(async () => {
     await vadRef.current?.destroy()
     vadRef.current = null
-    setRecording(false)
+    streamingFramesRef.current = []
+    isSpeakingRef.current = false
     setVolume(0)
     if (timerRef.current) {
       clearInterval(timerRef.current)
       timerRef.current = null
     }
-    window.electron?.stopSession()
     currentMicSegIdRef.current = ''
   }, [])
 
@@ -483,16 +475,7 @@ export default function App() {
 
     await sysVad.start()
     sysVadRef.current = sysVad
-    setSystemCapture(true)
-
-    window.electron?.startSession({
-      sourceLang,
-      targetLang,
-      engine: 'deepl',
-      sampleRate: 16000,
-      mode,
-    })
-  }, [sourceLang, targetLang, mode])
+  }, [])
 
   const stopSysAudio = useCallback(async () => {
     await sysVadRef.current?.destroy()
@@ -501,10 +484,29 @@ export default function App() {
     sysStreamRef.current = null
     sysStreamingFramesRef.current = []
     isSysSpeakingRef.current = false
-    setSystemCapture(false)
     setSysVolume(0)
     currentSysSegIdRef.current = ''
   }, [])
+
+  const startRecord = async () => {
+    window.electron?.startSession({
+      sourceLang,
+      targetLang,
+      engine: 'deepl',
+      sampleRate: 16000,
+      mode,
+    })
+    setRecording(true)
+    if (isMicCapture) await startMicAudio()
+    if (isSysCapture) await startSysAudio()
+  }
+
+  const stopRecord = async () => {
+    setRecording(false)
+    if (isMicCapture) await stopMicAudio()
+    if (isSysCapture) await stopSysAudio()
+    window.electron?.stopSession()
+  }
 
   return (
     <div className="h-screen bg-background flex flex-col">
@@ -517,17 +519,15 @@ export default function App() {
               <div className="flex items-center justify-between select-none gap-4">
                 <div className="flex flex-row items-center gap-2 w-50">
                   <Checkbox
-                    checked={systemCapture}
-                    onCheckedChange={(checked) =>
-                      checked ? startSysAudio() : stopSysAudio()
-                    }
+                    checked={isSysCapture}
+                    onCheckedChange={(checked) => setIsSysCapture(!!checked)}
                   />
                   <Monitor className="w-4 text-muted-foreground" />
                   <span className="text-m">System Audio</span>
                 </div>
 
                 <div className="w-40">
-                  {systemCapture && <Progress value={sysVolume * 100} />}
+                  {isSysCapture && <Progress value={sysVolume * 100} />}
                 </div>
               </div>
               <p className="text-xs text-muted-foreground ml-6">
@@ -537,6 +537,14 @@ export default function App() {
 
             <div className="flex flex-row items-center justify-between gap-4">
               <div className="w-50">
+                <div className="flex flex-row items-center gap-2 w-50">
+                  <Checkbox
+                    checked={isMicCapture}
+                    onCheckedChange={(checked) => setIsMicChpture(!!checked)}
+                  />
+                  <Mic className="w-4 text-muted-foreground" />
+                  <span className="text-m">Microphone</span>
+                </div>
                 <Select
                   value={selectedDeviceId}
                   onValueChange={setSelectedDeviceId}
@@ -561,23 +569,15 @@ export default function App() {
             </div>
           </div>
         </div>
-
-        <Button
-          className="w-50"
-          variant={recording ? 'destructive' : 'default'}
-          onClick={recording ? stopMicAudio : startMicAudio}
-        >
-          {recording ? (
-            <>
-              <MicOff className="mr-2 h-4 w-4" /> Stop Mic
-            </>
-          ) : (
-            <>
-              <Mic className="mr-2 h-4 w-4" /> Start Mic
-            </>
-          )}
-        </Button>
-
+        {recording ? (
+          <Button className="w-50" variant="destructive" onClick={stopRecord}>
+            <MicOff className="mr-2 h-4 w-4" /> Stop
+          </Button>
+        ) : (
+          <Button className="w-50" variant="default" onClick={startRecord}>
+            <Mic className="mr-2 h-4 w-4" /> Start
+          </Button>
+        )}
         <p className="flex items-center text-2xl text-muted-foreground">
           <Clock className="mr-2 h-6 w-6" />{' '}
           {String(Math.floor(elapsed / 3600)).padStart(2, '0')}:
