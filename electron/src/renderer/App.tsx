@@ -1,18 +1,10 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { nanoid } from 'nanoid'
 import { MicVAD } from '@ricky0123/vad-web'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  MicOff,
-  Monitor,
-  Mic,
-  Clock,
-  Square,
-  PlayIcon,
-  PauseIcon,
-} from 'lucide-react'
+import { Monitor, Mic, Clock } from 'lucide-react'
+import { RecordControls } from './RecordControls'
 import {
   Select,
   SelectContent,
@@ -29,10 +21,7 @@ const SAMPLE_RATE = 16000
 // Silero v5: 512 samples/frame @ 16kHz = 32ms; 16 frames = 512ms ≈ 0.5s
 const STREAMING_FRAMES = 16
 
-type Mode = 'transcript' | 'translate'
-type TargetLang = 'en-US' | 'zh-HANT'
-type SourceLang = 'en' | 'zh'
-type Status = 'recording' | 'pause' | 'stop'
+import type { Mode, TargetLang, SourceLang, Status } from './types'
 
 const SOURCE_LANGUAGES: { code: SourceLang; label: string }[] = [
   { code: 'zh', label: '中文' },
@@ -643,37 +632,13 @@ export default function App() {
               </div>
             </div>
           </div>
-          {status === 'stop' ? (
-            <Button className="w-30" variant="default" onClick={startRecord}>
-              <PlayIcon className="mr-2 h-4 w-4" /> Start
-            </Button>
-          ) : status === 'recording' ? (
-            <div className="flex items-center gap-2">
-              <Button className="w-30" variant="ghost" onClick={pauseRecord}>
-                <PauseIcon className="mr-2 h-4 w-4" /> Pause
-              </Button>
-              <Button
-                className="w-30"
-                variant="destructive"
-                onClick={stopRecord}
-              >
-                <Square className="mr-2 h-4 w-4" /> Stop
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Button className="w-30" variant="default" onClick={resumeRecord}>
-                <PlayIcon className="mr-2 h-4 w-4" /> Resume
-              </Button>
-              <Button
-                className="w-30"
-                variant="destructive"
-                onClick={stopRecord}
-              >
-                <Square className="mr-2 h-4 w-4" /> Stop
-              </Button>
-            </div>
-          )}
+          <RecordControls
+            status={status}
+            onStart={startRecord}
+            onPause={pauseRecord}
+            onResume={resumeRecord}
+            onStop={stopRecord}
+          />
         </div>
         <p className="flex items-center text-2xl text-muted-foreground">
           <Clock className="mr-2 h-6 w-6" />{' '}
