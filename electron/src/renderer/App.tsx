@@ -589,10 +589,24 @@ export default function App() {
 
           <AudioCaptureSettings
             isSysCapture={isSysCapture}
-            onSysCaptureChange={setIsSysCapture}
+            onSysCaptureChange={(v) => {
+              setIsSysCapture(v)
+              if (v) {
+                toast.success('Enable System Audio Capture')
+              } else {
+                toast.success('Disable System Audio Capture')
+              }
+            }}
             sysVolume={sysVolume}
             isMicCapture={isMicCapture}
-            onMicCaptureChange={setIsMicChpture}
+            onMicCaptureChange={(v) => {
+              setIsMicChpture(v)
+              if (v) {
+                toast.success('Enable Microphone Audio Capture')
+              } else {
+                toast.success('Disable Microphone Audio Capture')
+              }
+            }}
             micVolume={micVolume}
             selectedDeviceId={selectedDeviceId}
             onDeviceChange={setSelectedDeviceId}

@@ -59,14 +59,12 @@ export function AudioCaptureSettings({
               <Monitor className="w-4 text-muted-foreground shrink-0" />
               <span className="cursor-pointer shrink-0">System Audio</span>
               {isSysCapture && (
-                <Progress
-                  className="w-40 ml-auto"
-                  value={isSysCapture ? sysVolume * 100 : 0}
-                />
+                <Progress className="w-40 ml-auto" value={sysVolume * 100} />
               )}
             </label>
             <p className="text-xs text-muted-foreground ml-6">
-              若要即時翻譯會議其他人發言，請選擇。
+              Enable to translate other participants' speech in real time during
+              meetings.
             </p>
           </div>
 
@@ -80,10 +78,7 @@ export function AudioCaptureSettings({
               <Mic className="w-4 text-muted-foreground shrink-0" />
               <span className="cursor-pointer shrink-0">Microphone</span>
               {isMicCapture && (
-                <Progress
-                  className="w-40 ml-auto"
-                  value={isMicCapture ? micVolume * 100 : 0}
-                />
+                <Progress className="w-40 ml-auto" value={micVolume * 100} />
               )}
             </label>
             <Select
