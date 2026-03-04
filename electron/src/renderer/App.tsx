@@ -4,7 +4,15 @@ import { MicVAD } from '@ricky0123/vad-web'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
-import { MicOff, Monitor, Mic, Clock } from 'lucide-react'
+import {
+  MicOff,
+  Monitor,
+  Mic,
+  Clock,
+  Square,
+  PlayIcon,
+  PauseIcon,
+} from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -24,6 +32,7 @@ const STREAMING_FRAMES = 16
 type Mode = 'transcript' | 'translate'
 type TargetLang = 'en-US' | 'zh-HANT'
 type SourceLang = 'en' | 'zh'
+type Status = 'recording' | 'pause' | 'stop'
 
 const SOURCE_LANGUAGES: { code: SourceLang; label: string }[] = [
   { code: 'zh', label: '中文' },
@@ -66,7 +75,7 @@ function playAudio(
 }
 
 export default function App() {
-  const [recording, setRecording] = useState(false)
+  const [status, setStatus] = useState<Status>('stop')
   const [micVolume, setMicVolume] = useState(0)
   const [elapsed, setElapsed] = useState(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -542,28 +551,40 @@ export default function App() {
       sampleRate: 16000,
       mode,
     })
-    setRecording(true)
+    setStatus('recording')
     setElapsed(0)
     timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000)
     if (isMicCapture) await startMicAudio()
     if (isSysCapture) await startSysAudio()
   }
 
-  const stopRecord = async () => {
-    setRecording(false)
+  const pauseRecord = async () => {
+    setStatus('pause')
     if (isMicCapture) await stopMicAudio()
     if (isSysCapture) await stopSysAudio()
     if (timerRef.current) {
       clearInterval(timerRef.current)
       timerRef.current = null
     }
+  }
+
+  const resumeRecord = async () => {
+    setStatus('recording')
+    timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000)
+    if (isMicCapture) await startMicAudio()
+    if (isSysCapture) await startSysAudio()
+  }
+
+  const stopRecord = async () => {
+    pauseRecord()
     window.electron?.stopSession()
+    setStatus('stop')
   }
 
   return (
     <div className="h-screen bg-background flex flex-col">
       <div className="w-full flex items-center justify-between p-6 border-b border-border">
-        <div className="flex items-center justify-between gap-8">
+        <div className="flex items-center gap-8">
           <h1 className="text-3xl font-semibold">TranBot</h1>
 
           <div className="flex flex-col gap-2">
@@ -573,7 +594,7 @@ export default function App() {
                   <Checkbox
                     checked={isSysCapture}
                     onCheckedChange={(checked) => setIsSysCapture(!!checked)}
-                    disabled={recording}
+                    disabled={status !== 'stop'}
                   />
                   <Monitor className="w-4 text-muted-foreground" />
                   <span className="text-m">System Audio</span>
@@ -594,7 +615,7 @@ export default function App() {
                   <Checkbox
                     checked={isMicCapture}
                     onCheckedChange={(checked) => setIsMicChpture(!!checked)}
-                    disabled={recording}
+                    disabled={status !== 'stop'}
                   />
                   <Mic className="w-4 text-muted-foreground" />
                   <span className="text-m">Microphone</span>
@@ -602,7 +623,7 @@ export default function App() {
                 <Select
                   value={selectedDeviceId}
                   onValueChange={setSelectedDeviceId}
-                  disabled={recording}
+                  disabled={status !== 'stop'}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select microphone" />
@@ -622,16 +643,38 @@ export default function App() {
               </div>
             </div>
           </div>
+          {status === 'stop' ? (
+            <Button className="w-30" variant="default" onClick={startRecord}>
+              <PlayIcon className="mr-2 h-4 w-4" /> Start
+            </Button>
+          ) : status === 'recording' ? (
+            <div className="flex items-center gap-2">
+              <Button className="w-30" variant="ghost" onClick={pauseRecord}>
+                <PauseIcon className="mr-2 h-4 w-4" /> Pause
+              </Button>
+              <Button
+                className="w-30"
+                variant="destructive"
+                onClick={stopRecord}
+              >
+                <Square className="mr-2 h-4 w-4" /> Stop
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Button className="w-30" variant="default" onClick={resumeRecord}>
+                <PlayIcon className="mr-2 h-4 w-4" /> Resume
+              </Button>
+              <Button
+                className="w-30"
+                variant="destructive"
+                onClick={stopRecord}
+              >
+                <Square className="mr-2 h-4 w-4" /> Stop
+              </Button>
+            </div>
+          )}
         </div>
-        {recording ? (
-          <Button className="w-50" variant="destructive" onClick={stopRecord}>
-            <MicOff className="mr-2 h-4 w-4" /> Stop
-          </Button>
-        ) : (
-          <Button className="w-50" variant="default" onClick={startRecord}>
-            <Mic className="mr-2 h-4 w-4" /> Start
-          </Button>
-        )}
         <p className="flex items-center text-2xl text-muted-foreground">
           <Clock className="mr-2 h-6 w-6" />{' '}
           {String(Math.floor(elapsed / 3600)).padStart(2, '0')}:
@@ -654,7 +697,7 @@ export default function App() {
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-background text-muted-foreground hover:bg-muted'
                     }`}
-                    disabled={recording}
+                    disabled={status !== 'stop'}
                     onClick={() => setMode(m)}
                   >
                     {m === 'transcript' ? 'Transcript' : 'Translation'}
@@ -667,7 +710,7 @@ export default function App() {
                 <Select
                   value={sourceLang}
                   onValueChange={(v) => setSourceLang(v as SourceLang)}
-                  disabled={recording}
+                  disabled={status !== 'stop'}
                 >
                   <SelectTrigger className="w-32">
                     <SelectValue />
@@ -684,7 +727,7 @@ export default function App() {
                 <Select
                   value={targetLang}
                   onValueChange={(v) => setTargetLang(v as TargetLang)}
-                  disabled={recording}
+                  disabled={status !== 'stop'}
                 >
                   <SelectTrigger className="w-32">
                     <SelectValue />
