@@ -373,6 +373,26 @@ export default function App() {
   }, [selectedDeviceId])
 
   const stopMicAudio = useCallback(async () => {
+    // 若正在說話，將緩衝 frames 當作 final segment 送出
+    if (isMicSpeakingRef.current && micStreamingFramesRef.current.length > 0) {
+      const segId = currentMicSegIdRef.current
+      const merged = mergeFrames(micStreamingFramesRef.current)
+      window.electron?.sendAudio(merged.buffer as ArrayBuffer, 0, true, segId)
+      setMicSegments((prev) => [
+        {
+          id: segId,
+          channel: 'mic',
+          timestamp: new Date(),
+          text: '',
+          micAudio: {
+            audio: merged.slice(),
+            duration: merged.length / SAMPLE_RATE,
+          },
+        },
+        ...prev,
+      ])
+      setMicInterimSegment(null)
+    }
     await vadRef.current?.destroy()
     vadRef.current = null
     micStreamingFramesRef.current = []
@@ -436,7 +456,6 @@ export default function App() {
           )
         }
         window.electron?.sendAudio(audio.buffer as ArrayBuffer, 1, true, segId)
-        setSysVolume(0)
         setSysSegments((prev) => [
           {
             id: segId,
@@ -450,6 +469,7 @@ export default function App() {
           },
           ...prev,
         ])
+        setSysVolume(0)
       },
       onVADMisfire: () => {
         isSysSpeakingRef.current = false
@@ -481,6 +501,26 @@ export default function App() {
   }, [])
 
   const stopSysAudio = useCallback(async () => {
+    // 若正在說話，將緩衝 frames 當作 final segment 送出
+    if (isSysSpeakingRef.current && sysStreamingFramesRef.current.length > 0) {
+      const segId = currentSysSegIdRef.current
+      const merged = mergeFrames(sysStreamingFramesRef.current)
+      window.electron?.sendAudio(merged.buffer as ArrayBuffer, 1, true, segId)
+      setSysSegments((prev) => [
+        {
+          id: segId,
+          channel: 'loopback',
+          timestamp: new Date(),
+          text: '',
+          micAudio: {
+            audio: merged.slice(),
+            duration: merged.length / SAMPLE_RATE,
+          },
+        },
+        ...prev,
+      ])
+      setSysInterimSegment(null)
+    }
     await sysVadRef.current?.destroy()
     sysVadRef.current = null
 
