@@ -15,6 +15,8 @@ import {
 import { SegmentList } from './SegmentList'
 import type { Segment } from './SegmentList'
 import { Separator } from './components/ui/separator'
+import { Toaster } from './components/ui/sonner'
+import { toast } from 'sonner'
 
 const SAMPLE_RATE = 16000
 // Silero v5: 512 samples/frame @ 16kHz = 32ms; 16 frames = 512ms ≈ 0.5s
@@ -87,6 +89,7 @@ export default function App() {
   const [mode, setMode] = useState<Mode>('translate')
   const [sourceLang, setSourceLang] = useState<SourceLang>('en')
   const [targetLang, setTargetLang] = useState<TargetLang>('zh-HANT')
+
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('')
   const [isSysCapture, setIsSysCapture] = useState(false)
@@ -532,6 +535,10 @@ export default function App() {
   }, [])
 
   const startRecord = async () => {
+    if (targetLang.split('-')[0] === sourceLang) {
+      toast.error('The source and target languages must be different.')
+      return
+    }
     window.electron?.startSession({
       sourceLang,
       targetLang,
@@ -544,6 +551,7 @@ export default function App() {
     timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000)
     if (isMicCapture) await startMicAudio()
     if (isSysCapture) await startSysAudio()
+    toast.success('Start Translation')
   }
 
   const pauseRecord = async () => {
@@ -554,6 +562,7 @@ export default function App() {
       clearInterval(timerRef.current)
       timerRef.current = null
     }
+    toast.success('Pause Translation')
   }
 
   const resumeRecord = async () => {
@@ -561,16 +570,19 @@ export default function App() {
     timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000)
     if (isMicCapture) await startMicAudio()
     if (isSysCapture) await startSysAudio()
+    toast.success('Resume Translation')
   }
 
   const stopRecord = async () => {
     pauseRecord()
     window.electron?.stopSession()
     setStatus('stop')
+    toast.warning('Finish Translation')
   }
 
   return (
     <div className="h-screen bg-background flex flex-col">
+      <Toaster />
       <div className="w-full flex items-center justify-between p-6 border-b border-border">
         <div className="flex items-center gap-8">
           <h1 className="text-3xl font-semibold">TranBot</h1>
@@ -654,7 +666,11 @@ export default function App() {
                   </SelectTrigger>
                   <SelectContent>
                     {TARGET_LANGUAGES.map((lang) => (
-                      <SelectItem key={lang.code} value={lang.code}>
+                      <SelectItem
+                        key={lang.code}
+                        value={lang.code}
+                        disabled={lang.code.split('-')[0] === sourceLang}
+                      >
                         {lang.label}
                       </SelectItem>
                     ))}
