@@ -1,5 +1,6 @@
 import { Checkbox } from '@/components/ui/checkbox'
-import { Monitor, Mic } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Monitor, Mic, Settings } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -8,6 +9,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Progress } from './components/ui/progress'
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from './components/ui/hover-card'
 
 interface AudioCaptureSettingsProps {
   isSysCapture: boolean
@@ -35,60 +41,70 @@ export function AudioCaptureSettings({
   disabled,
 }: AudioCaptureSettingsProps) {
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center justify-between select-none gap-4">
-          <label className="flex flex-row items-center gap-2 w-50 cursor-pointer">
-            <Checkbox
-              checked={isSysCapture}
-              onCheckedChange={(checked) => onSysCaptureChange(!!checked)}
-              disabled={disabled}
-            />
-            <Monitor className="w-4 text-muted-foreground" />
-            <span className="text-m">System Audio</span>
-          </label>
+    <HoverCard>
+      <HoverCardTrigger asChild>
+        <Button variant="ghost">
+          <Settings className="h-5 w-5" /> Audio Setting
+        </Button>
+      </HoverCardTrigger>
+      <HoverCardContent className="w-96">
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between select-none gap-4">
+              <label className="flex flex-row items-center gap-2 w-50 cursor-pointer">
+                <Checkbox
+                  checked={isSysCapture}
+                  onCheckedChange={(checked) => onSysCaptureChange(!!checked)}
+                  disabled={disabled}
+                />
+                <Monitor className="w-4 text-muted-foreground" />
+                <span className="text-m">System Audio</span>
+              </label>
 
-          <div className="w-40">
-            {isSysCapture && <Progress value={sysVolume * 100} />}
+              <div className="w-40">
+                {isSysCapture && <Progress value={sysVolume * 100} />}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground ml-6">
+              若要即時翻譯會議其他人發言，請選擇。
+            </p>
+          </div>
+
+          <div className="flex flex-row items-center justify-between gap-4">
+            <div className="w-50">
+              <label className="flex flex-row items-center gap-2 w-50 cursor-pointer">
+                <Checkbox
+                  checked={isMicCapture}
+                  onCheckedChange={(checked) => onMicCaptureChange(!!checked)}
+                  disabled={disabled}
+                />
+                <Mic className="w-4 text-muted-foreground" />
+                <span className="text-m">Microphone</span>
+              </label>
+              <Select
+                value={selectedDeviceId}
+                onValueChange={onDeviceChange}
+                disabled={disabled}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select microphone" />
+                </SelectTrigger>
+                <SelectContent>
+                  {audioDevices.map((device) => (
+                    <SelectItem key={device.deviceId} value={device.deviceId}>
+                      {device.label ||
+                        `Microphone ${device.deviceId.slice(0, 8)}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-40">
+              {isMicCapture && <Progress value={micVolume * 100} />}
+            </div>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground ml-6">
-          若要即時翻譯會議其他人發言，請選擇。
-        </p>
-      </div>
-
-      <div className="flex flex-row items-center justify-between gap-4">
-        <div className="w-50">
-          <label className="flex flex-row items-center gap-2 w-50 cursor-pointer">
-            <Checkbox
-              checked={isMicCapture}
-              onCheckedChange={(checked) => onMicCaptureChange(!!checked)}
-              disabled={disabled}
-            />
-            <Mic className="w-4 text-muted-foreground" />
-            <span className="text-m">Microphone</span>
-          </label>
-          <Select
-            value={selectedDeviceId}
-            onValueChange={onDeviceChange}
-            disabled={disabled}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select microphone" />
-            </SelectTrigger>
-            <SelectContent>
-              {audioDevices.map((device) => (
-                <SelectItem key={device.deviceId} value={device.deviceId}>
-                  {device.label || `Microphone ${device.deviceId.slice(0, 8)}`}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="w-40">
-          {isMicCapture && <Progress value={micVolume * 100} />}
-        </div>
-      </div>
-    </div>
+      </HoverCardContent>
+    </HoverCard>
   )
 }
