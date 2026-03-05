@@ -335,7 +335,7 @@ export default function App() {
             channel: 'mic',
             timestamp: new Date(),
             text: '',
-            micAudio: {
+            rawAudio: {
               audio: audio.slice(),
               duration: audio.length / SAMPLE_RATE,
             },
@@ -384,7 +384,7 @@ export default function App() {
           channel: 'mic',
           timestamp: new Date(),
           text: '',
-          micAudio: {
+          rawAudio: {
             audio: merged.slice(),
             duration: merged.length / SAMPLE_RATE,
           },
@@ -410,7 +410,7 @@ export default function App() {
       baseAssetPath: '/',
       onnxWASMBasePath: '/',
       model: 'v5',
-      redemptionMs: 400,
+      redemptionMs: 600,
       // negativeSpeechThreshold: 0.15,
       getStream: async () => {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -462,7 +462,7 @@ export default function App() {
             channel: 'loopback',
             timestamp: new Date(),
             text: '',
-            micAudio: {
+            rawAudio: {
               audio: audio.slice(),
               duration: audio.length / SAMPLE_RATE,
             },
@@ -512,7 +512,7 @@ export default function App() {
           channel: 'loopback',
           timestamp: new Date(),
           text: '',
-          micAudio: {
+          rawAudio: {
             audio: merged.slice(),
             duration: merged.length / SAMPLE_RATE,
           },

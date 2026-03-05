@@ -11,7 +11,7 @@ export type Segment = {
   channel: Channel
   text: string
   translation?: string
-  micAudio?: AudioClip
+  rawAudio?: AudioClip
   denoisedAudio?: AudioClip
 }
 
@@ -134,7 +134,7 @@ export function SegmentList({
                   </Badge>
                 </div>
                 <div>
-                  {(seg.denoisedAudio || seg.micAudio) && (
+                  {(seg.denoisedAudio || seg.rawAudio) && (
                     <div className="flex gap-2 flex-wrap">
                       {seg.denoisedAudio && (
                         <button
@@ -153,13 +153,13 @@ export function SegmentList({
                           Denoised {seg.denoisedAudio.duration.toFixed(1)}s
                         </button>
                       )}
-                      {seg.micAudio && (
+                      {seg.rawAudio && (
                         <button
                           className="flex items-center gap-1 text-xs rounded px-1.5 py-0.5 bg-background border border-border hover:bg-muted-foreground/10"
                           onClick={() =>
                             playingRawSegId === seg.id
                               ? onStopRaw()
-                              : onPlayRaw(seg.id, seg.micAudio!.audio)
+                              : onPlayRaw(seg.id, seg.rawAudio!.audio)
                           }
                         >
                           {playingRawSegId === seg.id ? (
@@ -167,7 +167,7 @@ export function SegmentList({
                           ) : (
                             <Play className="h-2.5 w-2.5" />
                           )}
-                          Raw {seg.micAudio.duration.toFixed(1)}s
+                          Raw {seg.rawAudio.duration.toFixed(1)}s
                         </button>
                       )}
                     </div>
