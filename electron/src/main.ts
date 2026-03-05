@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { app, BrowserWindow, ipcMain, desktopCapturer } from 'electron'
+import { app, BrowserWindow, ipcMain, desktopCapturer, session } from 'electron'
 import { join } from 'path'
 import WebSocket from 'ws'
 
@@ -116,7 +116,6 @@ ipcMain.on(
       targetLang: string
       engine: string
       sampleRate: number
-      mode: string
       denoise?: boolean
     },
   ) => {
@@ -128,7 +127,6 @@ ipcMain.on(
           sourceLang: config.sourceLang,
           targetLang: config.targetLang,
           sampleRate: config.sampleRate,
-          mode: config.mode,
           denoise: config.denoise ?? false,
         }),
       )

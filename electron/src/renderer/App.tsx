@@ -545,7 +545,6 @@ export default function App() {
       targetLang,
       engine: 'deepl',
       sampleRate: 16000,
-      mode,
       denoise: isDenoiseEnabled,
     })
     setStatus('recording')

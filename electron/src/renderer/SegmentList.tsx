@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Mic, Monitor, Play, Square, Trash2 } from 'lucide-react'
 import { Badge } from './components/ui/badge'
+import { Mode } from './types';
 
 export type AudioClip = { audio: Float32Array; duration: number }
 export type Channel = 'mic' | 'loopback'
@@ -19,7 +20,7 @@ type Props = {
   segments: Segment[]
   micInterimSegment?: Segment | null
   sysInterimSegment?: Segment | null
-  mode: 'transcript' | 'translate'
+  mode: Mode
   playingRawSegId: string | null
   playingDenoisedSegId: string | null
   onClear: () => void

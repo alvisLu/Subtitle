@@ -6,7 +6,6 @@ contextBridge.exposeInMainWorld('electron', {
     targetLang: string
     engine: 'deepl' | 'openai'
     sampleRate: number
-    mode: 'transcript' | 'translate'
   }) => ipcRenderer.send('session:start', config),
 
   stopSession: () => ipcRenderer.send('session:stop'),

@@ -4,7 +4,6 @@ interface ElectronAPI {
     targetLang: string
     engine: 'deepl' | 'openai'
     sampleRate: number
-    mode: 'transcript' | 'translate'
     denoise?: boolean
   }): void
   stopSession(): void

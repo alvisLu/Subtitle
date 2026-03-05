@@ -19,12 +19,10 @@ import {
 const PORT = Number(process.env.PORT ?? 8765)
 const DEFAULT_SOURCE_LANG = 'zh'
 const DEFAULT_TARGET_LANG = 'en-US'
-const DEFAULT_MODE = 'transcript'
 // Fallback sample rate if client does not send sampleRate in start message
 const INCOMING_SAMPLE_RATE = 48000
 
 type Channel = 'mic' | 'loopback'
-type Mode = 'transcript' | 'translate'
 
 interface ChannelState {
   processing: boolean
@@ -39,7 +37,6 @@ interface Session {
   sourceLang: string
   targetLang: deepl.TargetLanguageCode
   sampleRate: number
-  mode: Mode
   denoise: boolean
   running: boolean
   channels: Record<Channel, ChannelState>
@@ -67,7 +64,6 @@ function handleControl(session: Session, raw: string) {
     sourceLang?: string
     targetLang?: deepl.TargetLanguageCode
     sampleRate?: number
-    mode?: Mode
     denoise?: boolean
   }
   try {
@@ -80,7 +76,6 @@ function handleControl(session: Session, raw: string) {
     session.sourceLang = msg.sourceLang ?? DEFAULT_SOURCE_LANG
     session.targetLang = msg.targetLang ?? DEFAULT_TARGET_LANG
     session.sampleRate = msg.sampleRate ?? INCOMING_SAMPLE_RATE
-    session.mode = msg.mode ?? DEFAULT_MODE
     session.denoise = msg.denoise ?? false
     session.running = true
     send(session.ws, {
@@ -88,7 +83,7 @@ function handleControl(session: Session, raw: string) {
       config: { language: session.sourceLang, ...STT_BASE_CONFIG },
     })
     console.log(
-      `[Server] Started — lang: ${session.sourceLang} → ${session.targetLang}, mode: ${session.mode}`,
+      `[Server] Started — lang: ${session.sourceLang} → ${session.targetLang}`,
     )
   } else if (msg.type === 'stop') {
     session.running = false
@@ -130,44 +125,27 @@ async function transcribeInterim(
   if (rms(pcm) < 0.01) return
   const denoised = session.denoise ? denoiseAudio(pcm, session.sampleRate) : pcm
   try {
-    if (session.mode === 'translate') {
-      const original = await transcribe(
-        denoised,
-        session.sampleRate,
-        session.sourceLang,
+    const original = await transcribe(
+      denoised,
+      session.sampleRate,
+      session.sourceLang,
+      id,
+    )
+    if (original) {
+      send(session.ws, {
+        type: 'transcript',
+        channel,
         id,
-      )
-      if (original) {
+        text: original,
+        final: false,
+      })
+      const translated = await translateText(original, session.targetLang, id)
+      if (translated)
         send(session.ws, {
-          type: 'transcript',
+          type: 'translation',
           channel,
           id,
-          text: original,
-          final: false,
-        })
-        const translated = await translateText(original, session.targetLang, id)
-        if (translated)
-          send(session.ws, {
-            type: 'translation',
-            channel,
-            id,
-            text: translated,
-            final: false,
-          })
-      }
-    } else {
-      const text = await transcribe(
-        denoised,
-        session.sampleRate,
-        session.sourceLang,
-        id,
-      )
-      if (text)
-        send(session.ws, {
-          type: 'transcript',
-          channel,
-          id,
-          text,
+          text: translated,
           final: false,
         })
     }
@@ -192,41 +170,29 @@ async function transcribeSegment(
   }
 
   try {
-    if (session.mode === 'translate') {
-      const original = await transcribe(
-        denoised,
-        session.sampleRate,
-        session.sourceLang,
+    const original = await transcribe(
+      denoised,
+      session.sampleRate,
+      session.sourceLang,
+      id,
+    )
+    if (original) {
+      send(session.ws, {
+        type: 'transcript',
+        channel,
         id,
-      )
-      if (original) {
+        text: original,
+        final: true,
+      })
+      const translated = await translateText(original, session.targetLang, id)
+      if (translated)
         send(session.ws, {
-          type: 'transcript',
+          type: 'translation',
           channel,
           id,
-          text: original,
+          text: translated,
           final: true,
         })
-        const translated = await translateText(original, session.targetLang, id)
-        if (translated)
-          send(session.ws, {
-            type: 'translation',
-            channel,
-            id,
-            text: translated,
-            final: true,
-          })
-      }
-    } else {
-      const text = await transcribe(
-        denoised,
-        session.sampleRate,
-        session.sourceLang,
-        id,
-      )
-      if (text) {
-        send(session.ws, { type: 'transcript', channel, id, text, final: true })
-      }
     }
   } catch (err) {
     send(session.ws, { type: 'error', message: String(err) })
@@ -290,7 +256,6 @@ async function main() {
       sourceLang: DEFAULT_SOURCE_LANG,
       targetLang: DEFAULT_TARGET_LANG,
       sampleRate: INCOMING_SAMPLE_RATE,
-      mode: DEFAULT_MODE,
       denoise: false,
       running: false,
       channels: {
