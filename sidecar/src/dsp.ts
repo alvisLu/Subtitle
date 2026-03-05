@@ -67,8 +67,11 @@ export function denoiseAudio(
   sampleRate: number,
 ): Float32Array {
   const hp = highPassFilter(pcm, sampleRate)
-  const gated = noiseGate(hp, sampleRate)
-  return normalizeRms(gated)
+  return hp
+  // TODO: 還要測試 noiseGate, normalizeRms
+  // const gated = noiseGate(hp, sampleRate)
+  // return gated
+  // return normalizeRms(gated)
 }
 
 /** Parse a binary audio frame from the client.
@@ -93,7 +96,11 @@ export function parseAudioFrame(data: Buffer): {
 }
 
 /** Build the denoised-PCM binary frame sent back to Electron: [0xDA][channel: 0=mic,1=loopback][id: 21 bytes ASCII][Float32Array bytes] */
-export function buildDenoisedFrame(pcm: Float32Array, channel: 'mic' | 'loopback', id: string): Uint8Array {
+export function buildDenoisedFrame(
+  pcm: Float32Array,
+  channel: 'mic' | 'loopback',
+  id: string,
+): Uint8Array {
   const pcmBytes = new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength)
   const frame = new Uint8Array(23 + pcmBytes.byteLength)
   frame[0] = 0xda
