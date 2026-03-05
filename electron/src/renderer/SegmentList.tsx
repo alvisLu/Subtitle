@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Mic, Monitor, Play, Square, Trash2 } from 'lucide-react'
+import { memo } from 'react'
 import { Badge } from './components/ui/badge'
 import { Mode } from './types';
 
@@ -15,6 +16,98 @@ export type Segment = {
   rawAudio?: AudioClip
   denoisedAudio?: AudioClip
 }
+
+type SegmentRowProps = {
+  seg: Segment
+  mode: Mode
+  playingRawSegId: string | null
+  playingDenoisedSegId: string | null
+  onPlayRaw: (segId: string, audio: Float32Array) => void
+  onStopRaw: () => void
+  onPlayDenoised: (segId: string, audio: Float32Array) => void
+  onStopDenoised: () => void
+}
+
+const SegmentRow = memo(function SegmentRow({
+  seg,
+  mode,
+  playingRawSegId,
+  playingDenoisedSegId,
+  onPlayRaw,
+  onStopRaw,
+  onPlayDenoised,
+  onStopDenoised,
+}: SegmentRowProps) {
+  return (
+    <div className="rounded-md bg-muted p-3 text-sm break-words text-muted-foreground">
+      <div className="flex flex-row items-center justify-between gap-1">
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          {seg.channel === 'mic' ? (
+            <Mic className="h-3 w-3" />
+          ) : (
+            <Monitor className="h-3 w-3" />
+          )}
+          <span className="opacity-50">
+            {seg.timestamp.toLocaleTimeString()}
+          </span>
+          <Badge
+            variant="secondary"
+            className="bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300"
+          >
+            {seg.id}
+          </Badge>
+        </div>
+        <div>
+          {(seg.denoisedAudio || seg.rawAudio) && (
+            <div className="flex gap-2 flex-wrap">
+              {seg.denoisedAudio && (
+                <button
+                  className="flex items-center gap-1 text-xs rounded px-1.5 py-0.5 bg-background border border-border hover:bg-muted-foreground/10"
+                  onClick={() =>
+                    playingDenoisedSegId === seg.id
+                      ? onStopDenoised()
+                      : onPlayDenoised(seg.id, seg.denoisedAudio!.audio)
+                  }
+                >
+                  {playingDenoisedSegId === seg.id ? (
+                    <Square className="h-2.5 w-2.5" />
+                  ) : (
+                    <Play className="h-2.5 w-2.5" />
+                  )}
+                  Denoised {seg.denoisedAudio.duration.toFixed(1)}s
+                </button>
+              )}
+              {seg.rawAudio && (
+                <button
+                  className="flex items-center gap-1 text-xs rounded px-1.5 py-0.5 bg-background border border-border hover:bg-muted-foreground/10"
+                  onClick={() =>
+                    playingRawSegId === seg.id
+                      ? onStopRaw()
+                      : onPlayRaw(seg.id, seg.rawAudio!.audio)
+                  }
+                >
+                  {playingRawSegId === seg.id ? (
+                    <Square className="h-2.5 w-2.5" />
+                  ) : (
+                    <Play className="h-2.5 w-2.5" />
+                  )}
+                  Raw {seg.rawAudio.duration.toFixed(1)}s
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div>{seg.text}</div>
+      {mode === 'translate' && seg.translation && (
+        <div className="mt-1 pt-1 border-t border-border/40">
+          {seg.translation}
+        </div>
+      )}
+    </div>
+  )
+})
 
 type Props = {
   segments: Segment[]
@@ -113,76 +206,17 @@ export function SegmentList({
         {segments
           .filter((seg) => seg.text)
           .map((seg) => (
-            <div
+            <SegmentRow
               key={`${seg.channel}-${seg.id}`}
-              className="rounded-md bg-muted p-3 text-sm break-words text-muted-foreground"
-            >
-              <div className="flex flex-row items-center justify-between gap-1">
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  {seg.channel === 'mic' ? (
-                    <Mic className="h-3 w-3" />
-                  ) : (
-                    <Monitor className="h-3 w-3" />
-                  )}
-                  <span className="opacity-50">
-                    {seg.timestamp.toLocaleTimeString()}
-                  </span>
-                  <Badge
-                    variant="secondary"
-                    className="bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300"
-                  >
-                    {seg.id}
-                  </Badge>
-                </div>
-                <div>
-                  {(seg.denoisedAudio || seg.rawAudio) && (
-                    <div className="flex gap-2 flex-wrap">
-                      {seg.denoisedAudio && (
-                        <button
-                          className="flex items-center gap-1 text-xs rounded px-1.5 py-0.5 bg-background border border-border hover:bg-muted-foreground/10"
-                          onClick={() =>
-                            playingDenoisedSegId === seg.id
-                              ? onStopDenoised()
-                              : onPlayDenoised(seg.id, seg.denoisedAudio!.audio)
-                          }
-                        >
-                          {playingDenoisedSegId === seg.id ? (
-                            <Square className="h-2.5 w-2.5" />
-                          ) : (
-                            <Play className="h-2.5 w-2.5" />
-                          )}
-                          Denoised {seg.denoisedAudio.duration.toFixed(1)}s
-                        </button>
-                      )}
-                      {seg.rawAudio && (
-                        <button
-                          className="flex items-center gap-1 text-xs rounded px-1.5 py-0.5 bg-background border border-border hover:bg-muted-foreground/10"
-                          onClick={() =>
-                            playingRawSegId === seg.id
-                              ? onStopRaw()
-                              : onPlayRaw(seg.id, seg.rawAudio!.audio)
-                          }
-                        >
-                          {playingRawSegId === seg.id ? (
-                            <Square className="h-2.5 w-2.5" />
-                          ) : (
-                            <Play className="h-2.5 w-2.5" />
-                          )}
-                          Raw {seg.rawAudio.duration.toFixed(1)}s
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div>{seg.text}</div>
-              {mode === 'translate' && seg.translation && (
-                <div className="mt-1 pt-1 border-t border-border/40">
-                  {seg.translation}
-                </div>
-              )}
-            </div>
+              seg={seg}
+              mode={mode}
+              playingRawSegId={playingRawSegId}
+              playingDenoisedSegId={playingDenoisedSegId}
+              onPlayRaw={onPlayRaw}
+              onStopRaw={onStopRaw}
+              onPlayDenoised={onPlayDenoised}
+              onStopDenoised={onStopDenoised}
+            />
           ))}
       </div>
     </div>
