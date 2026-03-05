@@ -95,6 +95,7 @@ export default function App() {
   const [isSysCapture, setIsSysCapture] = useState(false)
   const [isMicCapture, setIsMicChpture] = useState(false)
   const [sysVolume, setSysVolume] = useState(0)
+  const [isDenoiseEnabled, setIsDenoiseEnabled] = useState(false)
 
   // Mic VAD
   const vadRef = useRef<MicVAD | null>(null)
@@ -410,7 +411,7 @@ export default function App() {
       baseAssetPath: '/',
       onnxWASMBasePath: '/',
       model: 'v5',
-      redemptionMs: 600,
+      redemptionMs: 200,
       // negativeSpeechThreshold: 0.15,
       getStream: async () => {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -545,6 +546,7 @@ export default function App() {
       engine: 'deepl',
       sampleRate: 16000,
       mode,
+      denoise: isDenoiseEnabled,
     })
     setStatus('recording')
     setElapsed(0)
@@ -612,6 +614,11 @@ export default function App() {
             onDeviceChange={setSelectedDeviceId}
             audioDevices={audioDevices}
             disabled={status !== 'stop'}
+            isDenoise={isDenoiseEnabled}
+            onDenoiseChange={(v) => {
+              setIsDenoiseEnabled(v)
+              toast.success(v ? 'Enable Denoise' : 'Disable Denoise')
+            }}
           />
           <RecordControls
             status={status}

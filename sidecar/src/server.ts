@@ -40,6 +40,7 @@ interface Session {
   targetLang: deepl.TargetLanguageCode
   sampleRate: number
   mode: Mode
+  denoise: boolean
   running: boolean
   channels: Record<Channel, ChannelState>
 }
@@ -67,6 +68,7 @@ function handleControl(session: Session, raw: string) {
     targetLang?: deepl.TargetLanguageCode
     sampleRate?: number
     mode?: Mode
+    denoise?: boolean
   }
   try {
     msg = JSON.parse(raw)
@@ -79,6 +81,7 @@ function handleControl(session: Session, raw: string) {
     session.targetLang = msg.targetLang ?? DEFAULT_TARGET_LANG
     session.sampleRate = msg.sampleRate ?? INCOMING_SAMPLE_RATE
     session.mode = msg.mode ?? DEFAULT_MODE
+    session.denoise = msg.denoise ?? false
     session.running = true
     send(session.ws, {
       type: 'config',
@@ -125,7 +128,7 @@ async function transcribeInterim(
 ) {
   // Skip near-silent interim frames (Float32 RMS < 0.01 ≈ inaudible)
   if (rms(pcm) < 0.01) return
-  const denoised = denoiseAudio(pcm, session.sampleRate)
+  const denoised = session.denoise ? denoiseAudio(pcm, session.sampleRate) : pcm
   try {
     if (session.mode === 'translate') {
       const original = await transcribe(
@@ -180,18 +183,11 @@ async function transcribeSegment(
   id: string,
 ) {
   // Skip silent audio as a safety net (VAD should have already filtered silence)
-  const segmentRms = rms(pcm)
-  if (segmentRms < 0.01) {
-    console.log(
-      `[Server] Skipping silent ${channel} segment (rms=${segmentRms.toFixed(4)})`,
-    )
-    return
-  }
+  if (rms(pcm) < 0.01) return
+  const denoised = session.denoise ? denoiseAudio(pcm, session.sampleRate) : pcm
 
-  const denoised = denoiseAudio(pcm, session.sampleRate)
-
-  // Send denoised PCM back to Electron as binary frame: [0xDA][channel][id][Float32Array bytes]
-  if (session.ws.readyState === session.ws.OPEN) {
+  // Send denoised PCM back to Electron only when denoise is enabled
+  if (session.denoise && session.ws.readyState === session.ws.OPEN) {
     session.ws.send(buildDenoisedFrame(denoised, channel, id))
   }
 
@@ -295,6 +291,7 @@ async function main() {
       targetLang: DEFAULT_TARGET_LANG,
       sampleRate: INCOMING_SAMPLE_RATE,
       mode: DEFAULT_MODE,
+      denoise: false,
       running: false,
       channels: {
         mic: makeChannelState(),

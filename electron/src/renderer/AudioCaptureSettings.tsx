@@ -1,6 +1,6 @@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
-import { Monitor, Mic, Settings } from 'lucide-react'
+import { Monitor, Mic, Settings, Wand2 } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -26,6 +26,8 @@ interface AudioCaptureSettingsProps {
   onDeviceChange: (deviceId: string) => void
   audioDevices: MediaDeviceInfo[]
   disabled: boolean
+  isDenoise: boolean
+  onDenoiseChange: (checked: boolean) => void
 }
 
 export function AudioCaptureSettings({
@@ -39,6 +41,8 @@ export function AudioCaptureSettings({
   onDeviceChange,
   audioDevices,
   disabled,
+  isDenoise,
+  onDenoiseChange,
 }: AudioCaptureSettingsProps) {
   return (
     <Popover>
@@ -98,6 +102,22 @@ export function AudioCaptureSettings({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="flex items-center select-none gap-2">
+              <Checkbox
+                checked={isDenoise}
+                onCheckedChange={(checked) => onDenoiseChange(!!checked)}
+                disabled={disabled}
+              />
+              <Wand2 className="w-4 text-muted-foreground shrink-0" />
+              <span className="cursor-pointer shrink-0">Denoise</span>
+            </label>
+            <p className="text-xs text-muted-foreground ml-6">
+              Apply noise reduction before transcription. Also enables denoised
+              audio playback per segment.
+            </p>
           </div>
         </div>
       </PopoverContent>

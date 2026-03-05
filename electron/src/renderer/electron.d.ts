@@ -5,6 +5,7 @@ interface ElectronAPI {
     engine: 'deepl' | 'openai'
     sampleRate: number
     mode: 'transcript' | 'translate'
+    denoise?: boolean
   }): void
   stopSession(): void
   sendAudio(

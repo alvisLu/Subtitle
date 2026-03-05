@@ -117,6 +117,7 @@ ipcMain.on(
       engine: string
       sampleRate: number
       mode: string
+      denoise?: boolean
     },
   ) => {
     console.log('[Main] session:start', config)
@@ -128,6 +129,7 @@ ipcMain.on(
           targetLang: config.targetLang,
           sampleRate: config.sampleRate,
           mode: config.mode,
+          denoise: config.denoise ?? false,
         }),
       )
     }
