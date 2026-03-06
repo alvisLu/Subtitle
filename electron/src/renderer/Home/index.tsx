@@ -631,10 +631,10 @@ export default function App() {
   return (
     <div className="h-screen bg-background flex flex-col">
       <Toaster />
-      <div className="w-full grid grid-cols-3 items-start px-4 py-3 border-b border-border md:items-center md:px-6 md:py-4">
+      <div className="relative w-full flex items-start px-4 py-3 border-b border-border md:items-center md:px-6 md:py-4">
         {/* Left: title */}
-        <div className="flex flex-col gap-1 md:flex-row md:items-center md:gap-4">
-          <h1 className="text-xl font-semibold md:text-3xl">Subtitle</h1>
+        <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:gap-4">
+          <h1 className="font-semibold text-3xl">Subtitle</h1>
           <div className="flex items-center gap-2">
             <AudioCaptureSettings
               isSysCapture={isSysCapture}
@@ -678,9 +678,9 @@ export default function App() {
         </div>
 
         {/* Center: clock */}
-        <div className="flex items-center justify-center gap-4">
-          <p className="flex items-center text-base text-muted-foreground md:text-2xl">
-            <Clock className="mr-1.5 h-4 w-4 md:mr-2 md:h-6 md:w-6" />
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center gap-4">
+          <p className="flex items-center text-xl text-muted-foreground md:text-2xl lg:text-2xl">
+            <Clock className="mr-1 h-5 w-5 md:mr-1.5 md:h-6 md:w-6 lg:mr-2 lg:h-6 lg:w-6" />
             {String(Math.floor(elapsed / 3600)).padStart(2, '0')}:
             {String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0')}:
             {String(elapsed % 60).padStart(2, '0')}
@@ -688,7 +688,7 @@ export default function App() {
         </div>
 
         {/* Right: pin */}
-        <div className="flex items-center justify-end gap-4">
+        <div className="ml-auto flex items-center justify-end gap-4">
           <Button
             variant={alwaysOnTop ? 'default' : 'outline'}
             size="icon"
