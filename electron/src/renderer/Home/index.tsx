@@ -123,7 +123,6 @@ export default function App() {
   const audioCtxRef = useRef<AudioContext | null>(null)
 
   useEffect(() => {
-    console.log(sysSegments)
     let cancelled = false
     async function refreshAudioDevices() {
       const all = await navigator.mediaDevices.enumerateDevices()
@@ -595,7 +594,7 @@ export default function App() {
     toast.success('Start Translation')
   }
 
-  const pauseRecord = async () => {
+  const handlePauseRecord = async () => {
     setStatus('pause')
     if (isMicCapture) await stopMicAudio()
     if (isSysCapture) await stopSysAudio()
@@ -603,6 +602,10 @@ export default function App() {
       clearInterval(timerRef.current)
       timerRef.current = null
     }
+  }
+
+  const pauseRecord = async () => {
+    handlePauseRecord()
     toast.success('Pause Translation')
   }
 
@@ -615,7 +618,7 @@ export default function App() {
   }
 
   const stopRecord = async () => {
-    pauseRecord()
+    handlePauseRecord()
     window.electron?.stopSession()
     setStatus('stop')
     toast.warning('Finish Translation')
