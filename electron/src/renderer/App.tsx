@@ -329,6 +329,7 @@ export default function App() {
       onSpeechEnd: (audio: Float32Array) => {
         isMicSpeakingRef.current = false
         const segId = currentMicSegIdRef.current
+        if (!segId) return
         const interimText = micInterimTextRef.current
         micInterimTextRef.current = ''
         const micInterimTranslation = micInterimTranslationTextRef.current
@@ -416,6 +417,7 @@ export default function App() {
       micInterimTextRef.current = ''
       setMicInterimSegment(null)
     }
+    currentMicSegIdRef.current = ''
     await vadRef.current?.destroy()
     vadRef.current = null
     micStreamingFramesRef.current = []
@@ -470,6 +472,7 @@ export default function App() {
       onSpeechEnd: (audio: Float32Array) => {
         isSysSpeakingRef.current = false
         const segId = currentSysSegIdRef.current
+        if (!segId) return
         const interimText = sysInterimTextRef.current
         sysInterimTextRef.current = ''
         const interimTranslationText = sysInterimTranslationTextRef.current
@@ -558,6 +561,7 @@ export default function App() {
       sysInterimTranslationTextRef.current = ''
       setSysInterimSegment(null)
     }
+    currentSysSegIdRef.current = ''
     await sysVadRef.current?.destroy()
     sysVadRef.current = null
 
