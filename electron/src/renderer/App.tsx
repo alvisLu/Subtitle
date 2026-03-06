@@ -106,6 +106,11 @@ export default function App() {
   const currentMicSegIdRef = useRef('')
   const currentSysSegIdRef = useRef('')
 
+  const micInterimTextRef = useRef('')
+  const micInterimTranslationTextRef = useRef('')
+  const sysInterimTextRef = useRef('')
+  const sysInterimTranslationTextRef = useRef('')
+
   // System VAD
   const sysVadRef = useRef<MicVAD | null>(null)
   const sysStreamRef = useRef<MediaStream | null>(null)
@@ -154,6 +159,7 @@ export default function App() {
           )
           setSysInterimSegment((prev) => (prev?.id === id ? null : prev))
         } else {
+          sysInterimTextRef.current = text
           setSysInterimSegment((prev) =>
             prev?.id === id ? { ...prev, text } : prev,
           )
@@ -167,6 +173,7 @@ export default function App() {
           )
           setMicInterimSegment((prev) => (prev?.id === id ? null : prev))
         } else {
+          micInterimTextRef.current = text
           setMicInterimSegment((prev) =>
             prev?.id === id ? { ...prev, text } : prev,
           )
@@ -180,6 +187,7 @@ export default function App() {
             prev.map((s) => (s.id === id ? { ...s, translation: text } : s)),
           )
         } else {
+          sysInterimTranslationTextRef.current = text
           setSysInterimSegment((prev) =>
             prev?.id === id ? { ...prev, translation: text } : prev,
           )
@@ -190,6 +198,7 @@ export default function App() {
             prev.map((s) => (s.id === id ? { ...s, translation: text } : s)),
           )
         } else {
+          micInterimTranslationTextRef.current = text
           setMicInterimSegment((prev) =>
             prev?.id === id ? { ...prev, translation: text } : prev,
           )
@@ -307,6 +316,8 @@ export default function App() {
         isMicSpeakingRef.current = true
         micStreamingFramesRef.current = []
         currentMicSegIdRef.current = nanoid()
+        micInterimTextRef.current = ''
+        micInterimTranslationTextRef.current = ''
         setMicInterimSegment({
           id: currentMicSegIdRef.current,
           channel: 'mic',
@@ -318,6 +329,10 @@ export default function App() {
       onSpeechEnd: (audio: Float32Array) => {
         isMicSpeakingRef.current = false
         const segId = currentMicSegIdRef.current
+        const interimText = micInterimTextRef.current
+        micInterimTextRef.current = ''
+        const micInterimTranslation = micInterimTranslationTextRef.current
+        micInterimTranslationTextRef.current = ''
         if (micStreamingFramesRef.current.length > 0) {
           const merged = mergeFrames(micStreamingFramesRef.current)
           micStreamingFramesRef.current = []
@@ -335,7 +350,8 @@ export default function App() {
             id: segId,
             channel: 'mic',
             timestamp: new Date(),
-            text: '',
+            text: interimText,
+            translation: micInterimTranslation,
             rawAudio: {
               audio: audio.slice(),
               duration: audio.length / SAMPLE_RATE,
@@ -343,10 +359,14 @@ export default function App() {
           },
           ...prev,
         ])
+        setMicInterimSegment(null)
       },
       onVADMisfire: () => {
         isMicSpeakingRef.current = false
         micStreamingFramesRef.current = []
+        micInterimTextRef.current = ''
+        micInterimTranslationTextRef.current = ''
+        setMicInterimSegment(null)
         setMicVolume(0)
       },
       onFrameProcessed: (prob, frame) => {
@@ -384,7 +404,8 @@ export default function App() {
           id: segId,
           channel: 'mic',
           timestamp: new Date(),
-          text: '',
+          text: micInterimTextRef.current,
+          translation: micInterimTranslationTextRef.current,
           rawAudio: {
             audio: merged.slice(),
             duration: merged.length / SAMPLE_RATE,
@@ -392,6 +413,7 @@ export default function App() {
         },
         ...prev,
       ])
+      micInterimTextRef.current = ''
       setMicInterimSegment(null)
     }
     await vadRef.current?.destroy()
@@ -435,6 +457,8 @@ export default function App() {
         isSysSpeakingRef.current = true
         sysStreamingFramesRef.current = []
         currentSysSegIdRef.current = nanoid()
+        sysInterimTextRef.current = ''
+        sysInterimTranslationTextRef.current = ''
         setSysInterimSegment({
           id: currentSysSegIdRef.current,
           channel: 'loopback',
@@ -446,6 +470,10 @@ export default function App() {
       onSpeechEnd: (audio: Float32Array) => {
         isSysSpeakingRef.current = false
         const segId = currentSysSegIdRef.current
+        const interimText = sysInterimTextRef.current
+        sysInterimTextRef.current = ''
+        const interimTranslationText = sysInterimTranslationTextRef.current
+        sysInterimTranslationTextRef.current = ''
         if (sysStreamingFramesRef.current.length > 0) {
           const merged = mergeFrames(sysStreamingFramesRef.current)
           sysStreamingFramesRef.current = []
@@ -462,7 +490,8 @@ export default function App() {
             id: segId,
             channel: 'loopback',
             timestamp: new Date(),
-            text: '',
+            text: interimText,
+            translation: interimTranslationText,
             rawAudio: {
               audio: audio.slice(),
               duration: audio.length / SAMPLE_RATE,
@@ -470,11 +499,15 @@ export default function App() {
           },
           ...prev,
         ])
+        setSysInterimSegment(null)
         setSysVolume(0)
       },
       onVADMisfire: () => {
         isSysSpeakingRef.current = false
         sysStreamingFramesRef.current = []
+        sysInterimTextRef.current = ''
+        sysInterimTranslationTextRef.current = ''
+        setSysInterimSegment(null)
         setSysVolume(0)
       },
       onFrameProcessed: (prob, frame) => {
@@ -512,7 +545,8 @@ export default function App() {
           id: segId,
           channel: 'loopback',
           timestamp: new Date(),
-          text: '',
+          text: sysInterimTextRef.current,
+          translation: sysInterimTranslationTextRef.current,
           rawAudio: {
             audio: merged.slice(),
             duration: merged.length / SAMPLE_RATE,
@@ -520,6 +554,8 @@ export default function App() {
         },
         ...prev,
       ])
+      sysInterimTextRef.current = ''
+      sysInterimTranslationTextRef.current = ''
       setSysInterimSegment(null)
     }
     await sysVadRef.current?.destroy()
