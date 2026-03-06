@@ -24,6 +24,7 @@ const STREAMING_FRAMES = 16
 
 import type { Mode, TargetLang, SourceLang, Status } from './types'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 
 const SOURCE_LANGUAGES: { code: SourceLang; label: string }[] = [
   { code: 'zh', label: '中文' },
@@ -709,22 +710,24 @@ export default function App() {
             <div className="w-full grid grid-cols-2 items-start md:items-center ">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 {/* Mode selector */}
-                <div className="flex rounded-md overflow-hidden border border-border w-50">
-                  {(['transcript', 'translate'] as Mode[]).map((m) => (
-                    <button
-                      key={m}
-                      className={`flex-1 py-1.5 text-sm font-medium transition-colors ${
-                        mode === m
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-background text-muted-foreground hover:bg-muted'
-                      }`}
-                      disabled={status !== 'stop'}
-                      onClick={() => setMode(m)}
-                    >
-                      {m === 'transcript' ? 'Transcript' : 'Translation'}
-                    </button>
-                  ))}
-                </div>
+                <label className="flex items-center gap-2 text-sm font-medium cursor-pointer select-none">
+                  <Switch
+                    checked={mode === 'translate'}
+                    onCheckedChange={(v: boolean) =>
+                      setMode(v ? 'translate' : 'transcript')
+                    }
+                    disabled={status !== 'stop'}
+                  />
+                  <span
+                    className={
+                      mode === 'translate'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground'
+                    }
+                  >
+                    Show Translation
+                  </span>
+                </label>
 
                 {/* Language selectors */}
                 <div className="flex items-center gap-2">
