@@ -8,12 +8,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Progress } from './components/ui/progress'
+import { Progress } from '../../components/ui/progress'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from './components/ui/popover'
+} from '../../components/ui/popover'
 
 interface AudioCaptureSettingsProps {
   isSysCapture: boolean

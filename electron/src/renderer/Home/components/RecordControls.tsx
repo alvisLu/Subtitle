@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { PlayIcon, PauseIcon, Square } from 'lucide-react'
-import type { Status } from './types'
+import type { Status } from '../../types'
 
 interface RecordControlsProps {
   status: Status
