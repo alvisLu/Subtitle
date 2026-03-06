@@ -22,7 +22,7 @@ const SAMPLE_RATE = 16000
 // Silero v5: 512 samples/frame @ 16kHz = 32ms; 16 frames = 512ms ≈ 0.5s
 const STREAMING_FRAMES = 16
 
-import type { Mode, TargetLang, SourceLang, Status } from '../types'
+import type { Mode, TargetLang, SourceLang, Status } from './types'
 
 const SOURCE_LANGUAGES: { code: SourceLang; label: string }[] = [
   { code: 'zh', label: '中文' },

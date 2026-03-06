@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Mic, Monitor, Play, Square, Trash2 } from 'lucide-react'
 import { memo } from 'react'
 import { Badge } from '../../components/ui/badge'
-import { Mode } from '../../types'
+import { Mode } from '../types'
 
 export type AudioClip = { audio: Float32Array; duration: number }
 export type Channel = 'mic' | 'loopback'
