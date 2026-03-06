@@ -20,6 +20,7 @@ export type Segment = {
 type SegmentRowProps = {
   seg: Segment
   mode: Mode
+  fontSize: number
   playingRawSegId: string | null
   playingDenoisedSegId: string | null
   onPlayRaw: (segId: string, audio: Float32Array) => void
@@ -31,6 +32,7 @@ type SegmentRowProps = {
 const SegmentRow = memo(function SegmentRow({
   seg,
   mode,
+  fontSize,
   playingRawSegId,
   playingDenoisedSegId,
   onPlayRaw,
@@ -99,9 +101,12 @@ const SegmentRow = memo(function SegmentRow({
         </div>
       </div>
 
-      <div>{seg.text}</div>
+      <div style={{ fontSize }}>{seg.text}</div>
       {mode === 'translate' && seg.translation && (
-        <div className="mt-1 pt-1 border-t border-border/40">
+        <div
+          className="mt-1 pt-1 border-t border-border/40"
+          style={{ fontSize }}
+        >
           {seg.translation}
         </div>
       )}
@@ -114,6 +119,7 @@ type Props = {
   micInterimSegment?: Segment | null
   sysInterimSegment?: Segment | null
   mode: Mode
+  fontSize: number
   playingRawSegId: string | null
   playingDenoisedSegId: string | null
   onClear: () => void
@@ -128,6 +134,7 @@ export function SegmentList({
   micInterimSegment,
   sysInterimSegment,
   mode,
+  fontSize,
   playingRawSegId,
   playingDenoisedSegId,
   onClear,
@@ -137,7 +144,11 @@ export function SegmentList({
   onStopDenoised,
 }: Props) {
   if (segments.length === 0 && !micInterimSegment && !sysInterimSegment) {
-    return <p className="text-muted-foreground">Original / Translation</p>
+    return (
+      <p className="text-muted-foreground" style={{ fontSize }}>
+        Original / Translation
+      </p>
+    )
   }
 
   return (
@@ -168,12 +179,15 @@ export function SegmentList({
                 {micInterimSegment.id}
               </Badge>
             </div>
-            <div>
+            <div style={{ fontSize }}>
               {micInterimSegment.text}
               <span className="animate-pulse"> ···</span>
             </div>
             {mode === 'translate' && micInterimSegment.translation && (
-              <div className="mt-1 pt-1 border-t border-border/40">
+              <div
+                className="mt-1 pt-1 border-t border-border/40"
+                style={{ fontSize }}
+              >
                 {micInterimSegment.translation}
                 <span className="animate-pulse"> ···</span>
               </div>
@@ -191,12 +205,15 @@ export function SegmentList({
                 {sysInterimSegment.id}
               </Badge>
             </div>
-            <div>
+            <div style={{ fontSize }}>
               {sysInterimSegment.text}
               <span className="animate-pulse"> ···</span>
             </div>
             {mode === 'translate' && sysInterimSegment.translation && (
-              <div className="mt-1 pt-1 border-t border-border/40">
+              <div
+                className="mt-1 pt-1 border-t border-border/40"
+                style={{ fontSize }}
+              >
                 {sysInterimSegment.translation}
                 <span className="animate-pulse"> ···</span>
               </div>
@@ -210,6 +227,7 @@ export function SegmentList({
               key={`${seg.channel}-${seg.id}`}
               seg={seg}
               mode={mode}
+              fontSize={fontSize}
               playingRawSegId={playingRawSegId}
               playingDenoisedSegId={playingDenoisedSegId}
               onPlayRaw={onPlayRaw}

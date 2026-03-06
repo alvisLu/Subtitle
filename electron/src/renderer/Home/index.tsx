@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { nanoid } from 'nanoid'
 import { MicVAD } from '@ricky0123/vad-web'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { Clock } from 'lucide-react'
+import { AArrowDown, AArrowUp, Clock } from 'lucide-react'
 import { RecordControls } from './components/RecordControls'
 import { AudioCaptureSettings } from './components/AudioCaptureSettings'
 import {
@@ -23,6 +23,7 @@ const SAMPLE_RATE = 16000
 const STREAMING_FRAMES = 16
 
 import type { Mode, TargetLang, SourceLang, Status } from './types'
+import { Button } from '@/components/ui/button'
 
 const SOURCE_LANGUAGES: { code: SourceLang; label: string }[] = [
   { code: 'zh', label: '中文' },
@@ -96,6 +97,7 @@ export default function App() {
   const [isMicCapture, setIsMicChpture] = useState(false)
   const [sysVolume, setSysVolume] = useState(0)
   const [isDenoiseEnabled, setIsDenoiseEnabled] = useState(false)
+  const [fontSize, setFontSize] = useState(20)
 
   // Mic VAD
   const vadRef = useRef<MicVAD | null>(null)
@@ -681,64 +683,84 @@ export default function App() {
       <div className="h-full flex items-start justify-center p-8 overflow-y-auto">
         <Card className="w-full h-full flex flex-col">
           <CardHeader className="">
-            <div className="flex flex-row justify-start items-center gap-2">
-              {/* Mode selector */}
-              <div className="flex rounded-md overflow-hidden border border-border w-50">
-                {(['transcript', 'translate'] as Mode[]).map((m) => (
-                  <button
-                    key={m}
-                    className={`flex-1 py-1.5 text-sm font-medium transition-colors ${
-                      mode === m
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-background text-muted-foreground hover:bg-muted'
-                    }`}
+            <div className="flex flex-row justify-between">
+              <div className="flex flex-row justify-start gap-2">
+                {/* Mode selector */}
+                <div className="flex rounded-md overflow-hidden border border-border w-50">
+                  {(['transcript', 'translate'] as Mode[]).map((m) => (
+                    <button
+                      key={m}
+                      className={`flex-1 py-1.5 text-sm font-medium transition-colors ${
+                        mode === m
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-background text-muted-foreground hover:bg-muted'
+                      }`}
+                      disabled={status !== 'stop'}
+                      onClick={() => setMode(m)}
+                    >
+                      {m === 'transcript' ? 'Transcript' : 'Translation'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Language selectors */}
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={sourceLang}
+                    onValueChange={(v) => setSourceLang(v as SourceLang)}
                     disabled={status !== 'stop'}
-                    onClick={() => setMode(m)}
                   >
-                    {m === 'transcript' ? 'Transcript' : 'Translation'}
-                  </button>
-                ))}
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SOURCE_LANGUAGES.map((lang) => (
+                        <SelectItem key={lang.code} value={lang.code}>
+                          {lang.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-muted-foreground text-sm">→</span>
+                  <Select
+                    value={targetLang}
+                    onValueChange={(v) => setTargetLang(v as TargetLang)}
+                    disabled={status !== 'stop'}
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TARGET_LANGUAGES.map((lang) => (
+                        <SelectItem
+                          key={lang.code}
+                          value={lang.code}
+                          disabled={lang.code.split('-')[0] === sourceLang}
+                        >
+                          {lang.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              {/* Language selectors */}
+              {/* Text size controls */}
               <div className="flex items-center gap-2">
-                <Select
-                  value={sourceLang}
-                  onValueChange={(v) => setSourceLang(v as SourceLang)}
-                  disabled={status !== 'stop'}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setFontSize((s) => Math.max(14, s - 2))}
                 >
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SOURCE_LANGUAGES.map((lang) => (
-                      <SelectItem key={lang.code} value={lang.code}>
-                        {lang.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <span className="text-muted-foreground text-sm">→</span>
-                <Select
-                  value={targetLang}
-                  onValueChange={(v) => setTargetLang(v as TargetLang)}
-                  disabled={status !== 'stop'}
+                  <AArrowDown />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setFontSize((s) => Math.min(32, s + 2))}
                 >
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TARGET_LANGUAGES.map((lang) => (
-                      <SelectItem
-                        key={lang.code}
-                        value={lang.code}
-                        disabled={lang.code.split('-')[0] === sourceLang}
-                      >
-                        {lang.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <AArrowUp />
+                </Button>
               </div>
             </div>
           </CardHeader>
@@ -751,6 +773,7 @@ export default function App() {
               micInterimSegment={micInterimSegment}
               sysInterimSegment={sysInterimSegment}
               mode={mode}
+              fontSize={fontSize}
               playingRawSegId={playingRawSegId}
               playingDenoisedSegId={playingDenoisedSegId}
               onClear={() => {
