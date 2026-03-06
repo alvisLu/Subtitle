@@ -1,5 +1,5 @@
 {
-  "name": "@tranbot/electron",
+  "name": "@subtitle/electron",
   "version": "1.0.0",
   "type": "module",
   "main": "out/main/main.js",

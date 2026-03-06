@@ -629,7 +629,7 @@ export default function App() {
       <Toaster />
       <div className="w-full flex items-center justify-between p-6 border-b border-border">
         <div className="flex items-center gap-8">
-          <h1 className="text-3xl font-semibold">TranBot</h1>
+          <h1 className="text-3xl font-semibold">Subtitle</h1>
 
           <AudioCaptureSettings
             isSysCapture={isSysCapture}
