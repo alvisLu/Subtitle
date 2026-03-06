@@ -5,6 +5,14 @@ import WebSocket from 'ws'
 
 let win: BrowserWindow | null = null
 let ws: WebSocket | null = null
+let reconnecting = false
+let activeSessionConfig: {
+  sourceLang: string
+  targetLang: string
+  engine: string
+  sampleRate: number
+  denoise: boolean
+} | null = null
 
 const SIDECAR_URL = process.env.SIDECAR_URL ?? 'ws://localhost:8765'
 const isDev = !!process.env.ELECTRON_RENDERER_URL
@@ -25,10 +33,27 @@ async function connectSidecar(): Promise<WebSocket> {
 }
 
 async function scheduleReconnect() {
+  // 防止 close 事件多次觸發時產生多個並發重連迴圈
+  if (reconnecting) return
+  reconnecting = true
+  // 先設 null：讓重連期間的 audio:chunk IPC 提前 return，避免對已斷線的 socket 送資料
   ws = null
+  // 等待重連成功，確保後續的 attachSidecarHandlers 和重送 start 都在新 socket 已 OPEN 後執行
   ws = await connectSidecar()
-  console.log('[Main] Reconnected to sidecar')
+  reconnecting = false
   attachSidecarHandlers(ws)
+  if (activeSessionConfig) {
+    ws.send(
+      JSON.stringify({
+        type: 'start',
+        sourceLang: activeSessionConfig.sourceLang,
+        targetLang: activeSessionConfig.targetLang,
+        sampleRate: activeSessionConfig.sampleRate,
+        denoise: activeSessionConfig.denoise ?? false,
+      }),
+    )
+    console.log('[Main] Reconnected to sidecar', activeSessionConfig)
+  }
 }
 
 function attachSidecarHandlers(sock: WebSocket) {
@@ -120,6 +145,7 @@ ipcMain.on(
     },
   ) => {
     console.log('[Main] session:start', config)
+    activeSessionConfig = { ...config, denoise: config.denoise ?? false }
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(
         JSON.stringify({
@@ -136,6 +162,7 @@ ipcMain.on(
 
 ipcMain.on('session:stop', () => {
   console.log('[Main] session:stop')
+  activeSessionConfig = null
   if (ws?.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'stop' }))
   }
