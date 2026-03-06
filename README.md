@@ -1,4 +1,4 @@
-# TranBot
+# Subtitle
 
 Real-time speech transcription and translation for video calls. Captures microphone and system audio simultaneously, transcribes with Whisper, and translates with DeepL.
 
@@ -66,7 +66,7 @@ pnpm build
 ## Project Structure
 
 ```
-tranbot/
+subtitle/
 ├── electron/               # Electron frontend (React + TypeScript)
 │   └── src/
 │       ├── main.ts         # Main process, IPC handlers, WS client
