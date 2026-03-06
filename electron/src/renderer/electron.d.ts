@@ -33,6 +33,7 @@ interface ElectronAPI {
       final: boolean
     }) => void,
   ): void
+  setAlwaysOnTop(flag: boolean): Promise<void>
   getDesktopCapturerSources(): Promise<{ id: string; name: string }[]>
   removeAllListeners(channel: string): void
 }

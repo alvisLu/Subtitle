@@ -38,6 +38,9 @@ contextBridge.exposeInMainWorld('electron', {
     }) => void,
   ) => ipcRenderer.on('translation', (_e, data) => cb(data)),
 
+  setAlwaysOnTop: (flag: boolean) =>
+    ipcRenderer.invoke('window:setAlwaysOnTop', flag),
+
   getDesktopCapturerSources: () =>
     ipcRenderer.invoke('desktop-capturer:getSources'),
 

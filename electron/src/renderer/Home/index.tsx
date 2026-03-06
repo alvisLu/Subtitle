@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { nanoid } from 'nanoid'
 import { MicVAD } from '@ricky0123/vad-web'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { AArrowDown, AArrowUp, Clock } from 'lucide-react'
+import { AArrowDown, AArrowUp, Clock, Pin } from 'lucide-react'
 import { RecordControls } from './components/RecordControls'
 import { AudioCaptureSettings } from './components/AudioCaptureSettings'
 import {
@@ -98,6 +98,7 @@ export default function App() {
   const [sysVolume, setSysVolume] = useState(0)
   const [isDenoiseEnabled, setIsDenoiseEnabled] = useState(false)
   const [fontSize, setFontSize] = useState(20)
+  const [alwaysOnTop, setAlwaysOnTop] = useState(false)
 
   // Mic VAD
   const vadRef = useRef<MicVAD | null>(null)
@@ -629,62 +630,84 @@ export default function App() {
   return (
     <div className="h-screen bg-background flex flex-col">
       <Toaster />
-      <div className="w-full flex items-center justify-between p-6 border-b border-border">
-        <div className="flex items-center gap-8">
-          <h1 className="text-3xl font-semibold">Subtitle</h1>
-
-          <AudioCaptureSettings
-            isSysCapture={isSysCapture}
-            onSysCaptureChange={(v) => {
-              setIsSysCapture(v)
-              if (v) {
-                toast.success('Enable System Audio Capture')
-              } else {
-                toast.success('Disable System Audio Capture')
-              }
-            }}
-            sysVolume={sysVolume}
-            isMicCapture={isMicCapture}
-            onMicCaptureChange={(v) => {
-              setIsMicChpture(v)
-              if (v) {
-                toast.success('Enable Microphone Audio Capture')
-              } else {
-                toast.success('Disable Microphone Audio Capture')
-              }
-            }}
-            micVolume={micVolume}
-            selectedDeviceId={selectedDeviceId}
-            onDeviceChange={setSelectedDeviceId}
-            audioDevices={audioDevices}
-            disabled={status !== 'stop'}
-            isDenoise={isDenoiseEnabled}
-            onDenoiseChange={(v) => {
-              setIsDenoiseEnabled(v)
-              toast.success(v ? 'Enable Denoise' : 'Disable Denoise')
-            }}
-          />
-          <RecordControls
-            status={status}
-            onStart={startRecord}
-            onPause={pauseRecord}
-            onResume={resumeRecord}
-            onStop={stopRecord}
-          />
+      <div className="w-full grid grid-cols-3 items-start px-4 py-3 border-b border-border md:items-center md:px-6 md:py-4">
+        {/* Left: title */}
+        <div className="flex flex-col gap-1 md:flex-row md:items-center md:gap-4">
+          <h1 className="text-xl font-semibold md:text-3xl">Subtitle</h1>
+          <div className="flex items-center gap-2">
+            <AudioCaptureSettings
+              isSysCapture={isSysCapture}
+              onSysCaptureChange={(v) => {
+                setIsSysCapture(v)
+                if (v) {
+                  toast.success('Enable System Audio Capture')
+                } else {
+                  toast.success('Disable System Audio Capture')
+                }
+              }}
+              sysVolume={sysVolume}
+              isMicCapture={isMicCapture}
+              onMicCaptureChange={(v) => {
+                setIsMicChpture(v)
+                if (v) {
+                  toast.success('Enable Microphone Audio Capture')
+                } else {
+                  toast.success('Disable Microphone Audio Capture')
+                }
+              }}
+              micVolume={micVolume}
+              selectedDeviceId={selectedDeviceId}
+              onDeviceChange={setSelectedDeviceId}
+              audioDevices={audioDevices}
+              disabled={status !== 'stop'}
+              isDenoise={isDenoiseEnabled}
+              onDenoiseChange={(v) => {
+                setIsDenoiseEnabled(v)
+                toast.success(v ? 'Enable Denoise' : 'Disable Denoise')
+              }}
+            />
+            <RecordControls
+              status={status}
+              onStart={startRecord}
+              onPause={pauseRecord}
+              onResume={resumeRecord}
+              onStop={stopRecord}
+            />
+          </div>
         </div>
-        <p className="flex items-center text-2xl text-muted-foreground">
-          <Clock className="mr-2 h-6 w-6" />{' '}
-          {String(Math.floor(elapsed / 3600)).padStart(2, '0')}:
-          {String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0')}:
-          {String(elapsed % 60).padStart(2, '0')}
-        </p>
+
+        {/* Center: clock */}
+        <div className="flex items-center justify-center gap-4">
+          <p className="flex items-center text-base text-muted-foreground md:text-2xl">
+            <Clock className="mr-1.5 h-4 w-4 md:mr-2 md:h-6 md:w-6" />
+            {String(Math.floor(elapsed / 3600)).padStart(2, '0')}:
+            {String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0')}:
+            {String(elapsed % 60).padStart(2, '0')}
+          </p>
+        </div>
+
+        {/* Right: pin */}
+        <div className="flex items-center justify-end gap-4">
+          <Button
+            variant={alwaysOnTop ? 'default' : 'outline'}
+            size="icon"
+            onClick={() => {
+              const next = !alwaysOnTop
+              setAlwaysOnTop(next)
+              window.electron.setAlwaysOnTop(next)
+            }}
+          >
+            <Pin />
+          </Button>
+        </div>
       </div>
 
       <div className="h-full flex items-start justify-center p-8 overflow-y-auto">
         <Card className="w-full h-full flex flex-col">
           <CardHeader className="">
-            <div className="flex flex-row justify-between">
-              <div className="flex flex-row justify-start gap-2">
+            {/* <div className="flex flex-row justify-between"> */}
+            <div className="w-full grid grid-cols-2 items-start md:items-center ">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 {/* Mode selector */}
                 <div className="flex rounded-md overflow-hidden border border-border w-50">
                   {(['transcript', 'translate'] as Mode[]).map((m) => (
@@ -746,7 +769,7 @@ export default function App() {
               </div>
 
               {/* Text size controls */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-end gap-2">
                 <Button
                   variant="outline"
                   size="icon"

@@ -168,6 +168,11 @@ ipcMain.on('session:stop', () => {
   }
 })
 
+// IPC: always-on-top toggle
+ipcMain.handle('window:setAlwaysOnTop', (_e, flag: boolean) => {
+  win?.setAlwaysOnTop(flag)
+})
+
 // IPC: list screen sources for ScreenCaptureKit system audio
 ipcMain.handle('desktop-capturer:getSources', async () => {
   const sources = await desktopCapturer.getSources({
