@@ -57,12 +57,6 @@ pnpm sidecar
 pnpm dev
 ```
 
-## Build
-
-```bash
-pnpm build
-```
-
 ## Project Structure
 
 ```
@@ -82,11 +76,13 @@ subtitle/
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Frontend | Electron 40, React 19, TypeScript, Vite |
-| Styling | Tailwind CSS 4, Radix UI |
-| VAD | @ricky0123/vad-web (Silero v5) |
-| STT | HuggingFace Transformers 3 (Whisper) |
-| Translation | DeepL Node SDK |
-| Transport | WebSocket (ws) |
+| Layer       | Technology                              |
+| ----------- | --------------------------------------- |
+| Frontend    | Electron 40, React 19, TypeScript, Vite |
+| Styling     | Tailwind CSS 4, Radix UI                |
+| VAD         | @ricky0123/vad-web (Silero v5)          |
+| STT         | HuggingFace Transformers 3 (Whisper)    |
+| Translation | DeepL Node SDK                          |
+| Transport   | WebSocket (ws)                          |
+
+## Demo
