@@ -777,6 +777,7 @@ export default function App() {
                   variant="outline"
                   size="icon"
                   onClick={() => setFontSize((s) => Math.max(14, s - 2))}
+                  disabled={fontSize <= 14}
                 >
                   <AArrowDown />
                 </Button>
@@ -784,6 +785,7 @@ export default function App() {
                   variant="outline"
                   size="icon"
                   onClick={() => setFontSize((s) => Math.min(32, s + 2))}
+                  disabled={fontSize >= 32}
                 >
                   <AArrowUp />
                 </Button>
