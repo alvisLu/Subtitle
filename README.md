@@ -88,3 +88,5 @@ subtitle/
 ## Demo
 
 https://github.com/user-attachments/assets/743cc780-6485-4ef4-a6b9-f3cf42df7155
+
+Test video: [How My Kids Learn English](https://www.youtube.com/watch?v=pfQoC8n4XxY&t=53s)
