@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react'
+import React, { useState, useRef, useCallback, useEffect, use } from 'react'
 import { nanoid } from 'nanoid'
 import { MicVAD } from '@ricky0123/vad-web'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -588,7 +588,7 @@ export default function App() {
       targetLang,
       engine: 'deepl',
       sampleRate: 16000,
-      denoise: isDenoiseEnabled,
+      enableDenoise: isDenoiseEnabled,
     })
     setStatus('recording')
     setElapsed(0)

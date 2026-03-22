@@ -1,12 +1,9 @@
+import { SessionConfig } from '@/electron'
 import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('electron', {
-  startSession: (config: {
-    sourceLang: string
-    targetLang: string
-    engine: 'deepl' | 'openai'
-    sampleRate: number
-  }) => ipcRenderer.send('session:start', config),
+  startSession: (config: SessionConfig) =>
+    ipcRenderer.send('session:start', config),
 
   stopSession: () => ipcRenderer.send('session:stop'),
 

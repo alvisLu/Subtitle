@@ -1,11 +1,14 @@
+export type SessionConfig = {
+  type?: 'start' | 'stop'
+  sourceLang: string
+  targetLang: string
+  engine: 'deepl' | 'openai'
+  sampleRate: number
+  enableDenoise?: boolean
+}
+
 interface ElectronAPI {
-  startSession(config: {
-    sourceLang: string
-    targetLang: string
-    engine: 'deepl' | 'openai'
-    sampleRate: number
-    denoise?: boolean
-  }): void
+  startSession(config: SessigdonConfig): void
   stopSession(): void
   sendAudio(
     buffer: ArrayBuffer,

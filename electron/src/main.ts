@@ -1,18 +1,13 @@
+import { SessionConfig } from '@/electron'
 import 'dotenv/config'
-import { app, BrowserWindow, ipcMain, desktopCapturer, session } from 'electron'
+import { app, BrowserWindow, ipcMain, desktopCapturer } from 'electron'
 import { join } from 'path'
 import WebSocket from 'ws'
 
 let win: BrowserWindow | null = null
 let ws: WebSocket | null = null
 let reconnecting = false
-let activeSessionConfig: {
-  sourceLang: string
-  targetLang: string
-  engine: string
-  sampleRate: number
-  denoise: boolean
-} | null = null
+let activeSessionConfig: SessionConfig | null = null
 
 const SIDECAR_URL = process.env.SIDECAR_URL ?? 'ws://localhost:8765'
 const isDev = !!process.env.ELECTRON_RENDERER_URL
@@ -49,8 +44,8 @@ async function scheduleReconnect() {
         sourceLang: activeSessionConfig.sourceLang,
         targetLang: activeSessionConfig.targetLang,
         sampleRate: activeSessionConfig.sampleRate,
-        denoise: activeSessionConfig.denoise ?? false,
-      }),
+        enableDenoise: activeSessionConfig.enableDenoise ?? false,
+      } as SessionConfig),
     )
     console.log('[Main] Reconnected to sidecar', activeSessionConfig)
   }
@@ -132,33 +127,24 @@ function createWindow() {
 }
 
 // IPC: session control
-ipcMain.on(
-  'session:start',
-  (
-    _e,
-    config: {
-      sourceLang: string
-      targetLang: string
-      engine: string
-      sampleRate: number
-      denoise?: boolean
-    },
-  ) => {
-    console.log('[Main] session:start', config)
-    activeSessionConfig = { ...config, denoise: config.denoise ?? false }
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(
-        JSON.stringify({
-          type: 'start',
-          sourceLang: config.sourceLang,
-          targetLang: config.targetLang,
-          sampleRate: config.sampleRate,
-          denoise: config.denoise ?? false,
-        }),
-      )
-    }
-  },
-)
+ipcMain.on('session:start', (_e, config: SessionConfig) => {
+  console.log('[Main] session:start', config)
+  activeSessionConfig = {
+    ...config,
+    enableDenoise: config.enableDenoise ?? false,
+  }
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(
+      JSON.stringify({
+        type: 'start',
+        sourceLang: config.sourceLang,
+        targetLang: config.targetLang,
+        sampleRate: config.sampleRate,
+        enableDenoise: config.enableDenoise ?? false,
+      }),
+    )
+  }
+})
 
 ipcMain.on('session:stop', () => {
   console.log('[Main] session:stop')
